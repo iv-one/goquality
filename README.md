@@ -78,6 +78,7 @@ goquality path/to/project  # analyze another directory, recursively
 goquality ./cmd/... ./pkg/...
 goquality --verbose        # list every finding with file:line
 goquality --json           # machine-readable report
+goquality --agent          # compact report for coding agents
 goquality --cover          # also run tests and measure coverage
 goquality --no-security    # skip govulncheck and gosec (e.g. offline)
 goquality --skip misspell,gosec
@@ -102,6 +103,51 @@ The same data is in the JSON report as `next_steps`.
 Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
 
 `--cover` is opt-in because it executes the project's tests.
+
+## For coding agents
+
+goquality is built to be run in a loop by an agent: *"run `goquality --cover`
+and get it to A+"*. With `--agent`, the report is compact plain text:
+
+- a one-line verdict
+- which checks fail
+- next steps ranked by score gain, with a fix hint each
+- findings grouped by file, with suggested fixes, capped by `--max-findings`
+  (default 50) with the highest-gain checks first
+- a short footer that tells the agent to fix code rather than suppress it,
+  and how to re-check
+
+```text
+goquality: grade B (70.3%), 13 issues, 2 suppressed | example.com/sample: 3 packages, 38 lines of code, 1 test
+
+checks:
+  fail: govet, staticcheck, errcheck, ineffassign, gofmt, misspell, nolint, license, tests, gosec
+  skip: coverage (--cover)
+  pass: build, complexity, govulncheck
+
+next steps, by score gain (A needs > 80%: fix 1-2):
+  1. govet +8.3% (2 issues in 2 files): Fix the reported problems; go vet findings are almost always real bugs.
+  2. staticcheck +6.2% (2 issues in 2 files): Apply the suggested fixes; ...
+  Re-check a single check: goquality --agent --only <check>
+
+findings (13):
+lib/lib.go
+  12:9 staticcheck/SA6005: should use strings.EqualFold instead [fix: replace with strings.EqualFold]
+main.go
+  12:11 errcheck: unchecked error
+  ...
+```
+
+The agent format is used automatically when goquality runs under Claude Code
+(`CLAUDECODE` is set) and stdout is not a terminal. `--agent=false` turns it
+off; `--json` takes precedence.
+
+To make agents use goquality on their own, add a line like this to your
+`CLAUDE.md` or `AGENTS.md`:
+
+```markdown
+Before finishing a change, run `goquality` and fix any new issues it reports.
+```
 
 ## Checks
 

@@ -38,6 +38,8 @@ type options struct {
 	dir        string
 	verbose    bool
 	json       bool
+	agent      bool
+	maxFinds   int
 	cover      bool
 	noSecurity bool
 	noColor    bool
@@ -67,6 +69,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return 2
 	}
+	o.agent = useAgentFormat(o, args, stdout)
 	if o.version {
 		_, err := fmt.Fprintln(stdout, "goquality", version())
 		return exitCode(err)
@@ -87,7 +90,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	status := newStatus(stderr, !o.json)
+	status := newStatus(stderr, !o.json && !o.agent)
 	status.set("loading packages")
 	p, err := project.Load(ctx, dir, patterns)
 	if err != nil {
@@ -129,6 +132,8 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 	fs.BoolVar(&o.verbose, "verbose", false, "list individual findings")
 	fs.BoolVar(&o.verbose, "v", false, "shorthand for --verbose")
 	fs.BoolVar(&o.json, "json", false, "print the report as JSON")
+	fs.BoolVar(&o.agent, "agent", false, "compact report for coding agents (default when run by Claude Code without a terminal)")
+	fs.IntVar(&o.maxFinds, "max-findings", 50, "findings listed by --agent (0 for all)")
 	fs.BoolVar(&o.cover, "cover", false, "run tests to measure coverage (executes project code)")
 	fs.BoolVar(&o.noSecurity, "no-security", false, "skip security checks (govulncheck, gosec)")
 	fs.BoolVar(&o.noColor, "no-color", false, "disable colored output")
@@ -155,6 +160,26 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 		o.args = append(o.args, args[0])
 		args = args[1:]
 	}
+}
+
+// useAgentFormat reports whether to print the agent report: when asked to,
+// or by default when a coding agent runs goquality through a pipe and no
+// other format was chosen.
+func useAgentFormat(o options, args []string, stdout io.Writer) bool {
+	if o.agent || o.json || flagSet(args, "agent") {
+		return o.agent
+	}
+	return os.Getenv("CLAUDECODE") != "" && !isTerminal(stdout)
+}
+
+// rerunCommand is the command that re-runs goquality on the same target in
+// agent mode.
+func rerunCommand(o options) string {
+	parts := []string{"goquality", "--agent"}
+	if o.dir != "." {
+		parts = append(parts, "-C", o.dir)
+	}
+	return strings.Join(append(parts, o.args...), " ")
 }
 
 // target resolves the directory and package patterns to analyze. A single
@@ -188,6 +213,13 @@ func parseChecks(list string) (map[string]bool, error) {
 }
 
 func render(w io.Writer, rep check.Report, o options) error {
+	if o.agent {
+		_, err := io.WriteString(w, report.Agent(rep, report.AgentOptions{
+			MaxFindings: o.maxFinds,
+			Command:     rerunCommand(o),
+		}))
+		return err
+	}
 	if o.json {
 		data, err := report.JSON(rep)
 		if err != nil {
@@ -261,4 +293,16 @@ func (s *status) clear() {
 	if s.enabled {
 		_, _ = fmt.Fprint(s.w, "\r\x1b[K")
 	}
+}
+
+// flagSet reports whether a boolean flag was given explicitly, including as
+// --name=false.
+func flagSet(args []string, name string) bool {
+	for _, a := range args {
+		a = strings.TrimLeft(a, "-")
+		if a == name || strings.HasPrefix(a, name+"=") {
+			return true
+		}
+	}
+	return false
 }
