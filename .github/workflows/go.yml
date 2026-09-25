@@ -13,7 +13,10 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          # Latest patch of the minimum supported version: go.mod's exact
+          # version would pull in stdlib vulnerabilities that govulncheck flags.
+          go-version: '1.26.x'
+          check-latest: true
 
       - name: Lint
         run: make lint
