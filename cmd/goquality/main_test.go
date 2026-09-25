@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -38,6 +39,7 @@ func TestRunExitCodes(t *testing.T) {
 	}{
 		{[]string{sample, "--no-security", "--min-score", "99.9"}, 1},
 		{[]string{"--skip", "nope", sample}, 2},
+		{[]string{"--only", "nope", sample}, 2},
 		{[]string{"-C", t.TempDir()}, 2},
 		{[]string{"--version"}, 0},
 	}
@@ -46,5 +48,23 @@ func TestRunExitCodes(t *testing.T) {
 		if got := run(tt.args, &stdout, &stderr); got != tt.want {
 			t.Errorf("run(%q) = %d, want %d; stderr: %s", tt.args, got, tt.want, stderr.String())
 		}
+	}
+}
+
+func TestRunOnly(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{sample, "--json", "--only", "errcheck,gofmt"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code %d, stderr: %s", code, stderr.String())
+	}
+	var rep struct{ Checks []struct{ Name string } }
+	if err := json.Unmarshal(stdout.Bytes(), &rep); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, c := range rep.Checks {
+		names = append(names, c.Name)
+	}
+	if strings.Join(names, ",") != "errcheck,gofmt" {
+		t.Errorf("checks = %v, want [errcheck gofmt]", names)
 	}
 }

@@ -15,7 +15,7 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	// govulncheck needs the network; see TestGovulncheck.
-	checks := Filter(All(), map[string]bool{"govulncheck": true}, true)
+	checks := Filter(All(), nil, map[string]bool{"govulncheck": true}, true)
 	rep := Run(context.Background(), p, checks, Options{CyclomaticThreshold: 4, Coverage: true})
 
 	want := map[string][]string{
