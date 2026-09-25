@@ -27,6 +27,7 @@ func TestRun(t *testing.T) {
 		"gofmt":       {"lib/ugly.go:4"},
 		"complexity":  {"lib/lib.go:16"},
 		"misspell":    {"main.go:20"},
+		"nolint":      {"main.go:17"}, // no reason given
 		"license":     {":0"},
 		"tests":       {".:0"},
 		"coverage":    nil,
@@ -67,8 +68,11 @@ func TestRun(t *testing.T) {
 	if s := byName["coverage"].Score; s == nil || *s <= 0 || *s >= 0.1 {
 		t.Errorf("coverage score = %v, want between 0 and 0.1", s)
 	}
-	if rep.Issues != 13 {
-		t.Errorf("Issues = %d, want 13", rep.Issues)
+	if rep.Issues != 14 {
+		t.Errorf("Issues = %d, want 14", rep.Issues)
+	}
+	if byName["errcheck"].Suppressed != 2 || rep.Suppressed != 2 {
+		t.Errorf("suppressed = %d (errcheck), %d (total); want 2, 2", byName["errcheck"].Suppressed, rep.Suppressed)
 	}
 	if rep.Score <= 0 || rep.Score >= 100 {
 		t.Errorf("Score = %v, want between 0 and 100", rep.Score)
@@ -98,6 +102,43 @@ func TestGradeFromPercentage(t *testing.T) {
 	for pct, want := range tests {
 		if got := GradeFromPercentage(pct); got != want {
 			t.Errorf("GradeFromPercentage(%v) = %s, want %s", pct, got, want)
+		}
+	}
+}
+
+func TestExplained(t *testing.T) {
+	for rest, want := range map[string]bool{
+		"":                 false,
+		" ":                false,
+		" //":              false,
+		" // flaky in CI":  true,
+		"// reading input": true,
+	} {
+		if got := explained(rest); got != want {
+			t.Errorf("explained(%q) = %v, want %v", rest, got, want)
+		}
+	}
+}
+
+func TestParseDirective(t *testing.T) {
+	tests := []struct {
+		text      string
+		directive bool
+		vague     bool
+	}{
+		{"//nolint", true, true},
+		{"//nolint:errcheck", true, true},
+		{"//nolint:errcheck // cleanup is best-effort", true, false},
+		{"//nolint:errcheck,gosec // reason", true, false},
+		{"//lint:ignore SA6005 reason", true, false},
+		{"// Suppressed by //nolint directives.", false, false},
+		{"//nolintfoo", false, false},
+	}
+	for _, tt := range tests {
+		fd := &fileDirectives{lines: make(map[int][]directive)}
+		_, ok := fd.parse(tt.text, 1)
+		if ok != tt.directive || (len(fd.vague) > 0) != tt.vague {
+			t.Errorf("parse(%q) = directive %v, vague %v; want %v, %v", tt.text, ok, len(fd.vague) > 0, tt.directive, tt.vague)
 		}
 	}
 }

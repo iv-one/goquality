@@ -101,6 +101,7 @@ Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
 | Maintainability | `gofmt` | files that are not gofmt-formatted | 0.15 |
 | | `complexity` | functions with cyclomatic complexity above 15 (gocyclo) | 0.10 |
 | | `misspell` | common English misspellings | 0.02 |
+| | `nolint` | `//nolint` directives without linter names or a reason | 0.05 |
 | | `license` | a license file at the module root | 0.03 |
 | Tests | `tests` | share of packages with tests; test counts | 0.05 |
 | | `coverage` | statement coverage and test results (`--cover` only) | 0.10 |
@@ -136,6 +137,11 @@ goquality honors the directives other Go tools already use:
 
 A directive applies to its own line. When the comment is alone on its line, it
 also applies to the next line.
+
+Suppressions are never free. The report counts suppressed findings, and the
+`nolint` check flags any `//nolint` that doesn't name its linters or give a
+reason (`//nolint:errcheck // cleanup is best-effort`). This keeps a
+"make it A+" loop from being won by silencing linters.
 
 ## Development
 
