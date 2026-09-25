@@ -1,0 +1,46 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Lint, test and build
+    cmds:
+      - task: lint
+      - task: test
+      - task: build
+
+  build:
+    desc: Build all packages
+    cmds:
+      - go build ./...
+
+  install:
+    desc: Install the goquality binary into GOBIN
+    cmds:
+      - go install ./cmd/goquality
+      - |
+        bin=$(go env GOBIN); bin=${bin:-$(go env GOPATH)/bin}
+        echo "installed $bin/goquality"
+    silent: true
+
+  lint:
+    desc: Run go vet and check gofmt (testdata excluded)
+    cmds:
+      - go vet ./...
+      - |
+        out=$(gofmt -l cmd internal | grep -v testdata || true)
+        if [ -n "$out" ]; then echo "not gofmt-ed:"; echo "$out"; exit 1; fi
+
+  test:
+    desc: Run all tests with the race detector
+    cmds:
+      - go test -race ./...
+
+  test-short:
+    desc: Run tests, skipping those that need network access (govulncheck)
+    cmds:
+      - go test -short ./...
+
+  quality:
+    desc: Run goquality on itself (pass extra flags after --, e.g. task quality -- -v)
+    cmds:
+      - go run ./cmd/goquality --min-score 95 {{.CLI_ARGS}}
