@@ -1,30 +1,24 @@
-all: lint build test
+.PHONY: all build install lint test test-short quality
+
+all: lint test build
 
 build:
 	go build ./...
 
 install:
-	./scripts/make-install.sh
+	go install ./cmd/goquality
 
-lint: fmt vet staticcheck misspell
-
-fmt:
-	./scripts/gofmt.sh
-
-vet:
-	go vet ./check ./cmd/... ./download ./handlers ./tools/...
-	go vet ./main.go
-
-staticcheck:
-	@[ -x "$(shell which staticcheck)" ] || go install honnef.co/go/tools/cmd/staticcheck@master
-	staticcheck ./...
+lint:
+	go vet ./...
+	@out=$$(gofmt -l cmd internal | grep -v testdata); if [ -n "$$out" ]; then echo "not gofmt-ed:"; echo "$$out"; exit 1; fi
 
 test:
-	 go test -cover ./...
+	go test -race ./...
 
-start:
-	 go run main.go
+# Skips tests that need network access (govulncheck).
+test-short:
+	go test -short ./...
 
-misspell:
-	@[ -x "$(shell which misspell)" ] || go install ./vendor/github.com/client9/misspell/cmd/misspell
-	find . -name '*.go' -not -path './vendor/*' -not -path './_repos/*' -not -path './download/test_downloads/*' -not -path './check/testdata/*' | xargs misspell -error
+# Run goquality on itself.
+quality:
+	go run ./cmd/goquality --min-score 95

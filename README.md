@@ -1,136 +1,157 @@
-### :sunrise: Sunset Notice: Thank you for an incredible 10+ years
+# goquality
 
-To the Go community,
+`goquality` gives developers, coding agents and CI a fast summary of the
+health of a Go codebase: correctness, maintainability, tests and security, in
+one command and one binary.
 
-After more than a decade of serving the ecosystem, the time has come to sunset **Go Report Card**. Following the loss of our primary infrastructure sponsor, maintaining the web app is no longer sustainable.
-
-**What happens next:**
-
-**The Web App:** The live site will remain active until **July 1st, 2026**, after which the servers will be shut down.
-
-**The Code:** The repository will remain on GitHub but will be archived as read-only.
-
-Thank you to everyone who submitted a PR, reported a bug, used the tool, or supported us financially over the last decade.
-
-With gratitude,
-
-**The Go Report Card Team**
-
-[![Go Report Card](https://goreportcard.com/badge/gojp/goreportcard)](https://goreportcard.com/report/gojp/goreportcard) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/gojp/goreportcard/blob/master/LICENSE)
-
-# Go Report Card
-
-A web application that generates a report on the quality of an open source Go project. It uses several measures, including `gofmt`, `go vet`, `go lint` and `gocyclo`. To get a report on your own project, try [goreportcard.com](https://goreportcard.com).
-
-### Sponsors
-
-Support us over on [Patreon](https://www.patreon.com/goreportcard)!
-
-<a href="https://www.dotcom-monitor.com/sponsoring-open-source-projects/"><img src="https://goreportcard.com/assets/dotcom-monitor-logo-brightGB.svg" width="50%" height="50%"></a>
-
-<a href="https://www.bairesdev.com/sponsoring-open-source-projects/"><img src="https://goreportcard.com/assets/bairesdev.png" width="50%" height="50%"></a>
-
-<a href="https://www.digitalocean.com?utm_medium=opensource&utm_source=goreportcard"><img src="https://goreportcard.com/assets/digitalocean.svg" width="50%" height="50%"></a>
-
-- [Cody Wood](https://www.linkedin.com/in/sprkyco/)
-- Pascal Wenger
-- Jonas Kwiedor
-- [PhotoPrism](https://photoprism.app)
-- Kia Farhang
-- [Patrick DeVivo](https://twitter.com/patrickdevivo) ([MergeStat](https://github.com/mergestat/mergestat))
-- [Alexis Geoffrey](https://github.com/alexisgeoffrey)
-
-### Installation
-
-```
-git clone https://github.com/gojp/goreportcard.git
-cd goreportcard
-make install
+```bash
+go install github.com/iv-one/goquality/cmd/goquality@latest
+cd your/go/project
+goquality
 ```
 
-Now run:
+```text
+Go Quality  github.com/gojp/goreportcard
 
-```
-GRC_DATABASE_PATH=./db make start
-```
+Grade ................................. A+
+Score .............................. 94.0%
 
-and you should see
+Project
+  go version ...................... 1.24.2
+  packages ............................. 7
+  go files ............................ 38
+  test files ........................... 7
+  lines of code .................... 1,766
+  lines of test code ................. 236
+  functions .......................... 104
+  dependencies ........................ 33
+  direct dependencies .................. 9
 
-```
-Running on :8000...
-```
+Correctness
+  build ............................. PASS
+  go vet ............................ PASS
+  staticcheck ....................... PASS
+  errcheck ..................... 20 issues
+  ineffassign ....................... PASS
 
-Navigate to `localhost:8000` and you should see the Go Report Card front page.
+Maintainability
+  gofmt ............................. 100%
+  complexity ......................... 99%
+    average complexity ............... 3.5
+    max complexity .................... 21
+    most complex ............ check.GoTool
+    functions > 15 ..................... 1
+  misspell .......................... PASS
+  license ........................ LICENSE
 
-### Command Line Interface
+Tests
+  tests ............................... 12
+    packages tested .................. 3/7
+    test files ......................... 7
+  coverage ............. skipped (--cover)
 
-There is also a CLI available for grading applications on your local machine.
+Security
+  vulnerabilities ...................... 0
+    affected modules ................... 0
+    imported, not called ............... 0
+    required, not imported ............ 11
+  security findings ................... 17
+    high ............................... 0
+    medium ............................ 11
+    low ................................ 6
 
-Example usage:
-```
-git clone https://github.com/gojp/goreportcard.git
-cd goreportcard
-make install
-go install ./cmd/goreportcard-cli
-goreportcard-cli
-```
-
-```
-Grade .......... A+  99.9%
-Files ................ 362
-Issues ................. 2
-gofmt ............... 100%
-go_vet ............... 99%
-gocyclo .............. 99%
-golint .............. 100%
-ineffassign ......... 100%
-license ............. 100%
-misspell ............ 100%
-```
-
-Verbose output:
-
-```
-goreportcard-cli -v
-```
-
-```
-Grade .......... A+  99.9%
-Files ................ 362
-Issues ................. 2
-gofmt ............... 100%
-go_vet ............... 99%
-go_vet  vendor/github.com/prometheus/client_golang/prometheus/desc.go:25
-        error: cannot find package "github.com/prometheus/client_model/go" in any of: (vet)
-
-gocyclo .............. 99%
-gocyclo download/download.go:22
-        warning: cyclomatic complexity 17 of function download() is high (> 15) (gocyclo)
-
-golint .............. 100%
-ineffassign ......... 100%
-license ............. 100%
-misspell ............ 100%
+Overall
+  issues .............................. 42
+  time .............................. 3.0s
 ```
 
-### Contributing
+All analyzers are compiled into the binary. The only runtime dependency is
+the `go` command; nothing else needs to be installed. Build goquality with a
+Go toolchain at least as new as the projects you analyze (Go 1.26+). Its type
+checker cannot parse language features newer than itself.
 
-Go Report Card is an open source project run by volunteers, and contributions are welcome! Check out the [Issues](https://github.com/gojp/goreportcard/issues) page to see if your idea has already been mentioned. Feel free to raise an issue or submit a pull request.
+## Usage
 
-### Academic Citation
-
-If you use Go Report Card for academic purposes, please use the following citation:
-
+```bash
+goquality                  # analyze ./... in the current directory
+goquality path/to/project  # analyze another directory, recursively
+goquality ./cmd/... ./pkg/...
+goquality --verbose        # list every finding with file:line
+goquality --json           # machine-readable report
+goquality --cover          # also run tests and measure coverage
+goquality --no-security    # skip govulncheck and gosec (e.g. offline)
+goquality --skip misspell,gosec
+goquality --min-score 90   # exit 1 if the score is below 90%
 ```
-@Misc{schaaf-smith-goreportcard,
-    author = {Schaaf, Herman and Smith, Shawn},
-    title  = {Go Report Card: A report card for your Go application},
-    year   = {2015--},
-    url    = {https://www.goreportcard.com/},
-    note   = {[Online; accessed <today>]}
-}
+
+Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
+
+`--cover` is opt-in because it executes the project's tests.
+
+## Checks
+
+| Section | Check | What it measures | Weight |
+|---|---|---|---|
+| Correctness | `build` | packages that fail to load or type-check | 0.10 |
+| | `govet` | the `go vet` analyzer suite | 0.20 |
+| | `staticcheck` | staticcheck's default-enabled SA, S and ST checks | 0.15 |
+| | `errcheck` | unchecked errors | 0.10 |
+| | `ineffassign` | assignments whose value is never used | 0.05 |
+| Maintainability | `gofmt` | files that are not gofmt-formatted | 0.15 |
+| | `complexity` | functions with cyclomatic complexity above 15 (gocyclo) | 0.10 |
+| | `misspell` | common English misspellings | 0.02 |
+| | `license` | a license file at the module root | 0.03 |
+| Tests | `tests` | share of packages with tests; test counts | 0.05 |
+| | `coverage` | statement coverage and test results (`--cover` only) | 0.10 |
+| Security | `govulncheck` | known vulnerabilities from the Go vulnerability database | 0.10 |
+| | `gosec` | security issues found by gosec, with gosec's severities | 0.10 |
+
+The score is the weighted average of the checks that ran. For linters, a
+check's score is the share of files with no findings, as in Go Report Card.
+The grade uses Go Report Card's thresholds (A+ above 90%, A above 80%, ...).
+
+The different kinds of security findings are scored differently:
+
+- **govulncheck:** only vulnerabilities in code the project actually calls
+  lower the score. Vulnerable packages that are imported but not called, and
+  vulnerable modules that are only required, are reported but not scored.
+- **gosec:** only HIGH and MEDIUM findings affect the score. G104 (unhandled
+  errors) is excluded because it duplicates errcheck.
+
+Generated files (with a `// Code generated ... DO NOT EDIT.` header) are
+counted in the project statistics but excluded from all checks.
+
+## Suppressing findings
+
+goquality honors the directives other Go tools already use:
+
+- `//nolint` and `//nolint:errcheck,gosec`, using golangci-lint linter names
+  (`govet`, `staticcheck`, `gosimple`, `stylecheck`, `errcheck`,
+  `ineffassign`, `gocyclo`, `misspell`, `gosec`) or rule IDs such as `SA6005`
+  and `G401`
+- staticcheck's `//lint:ignore SA6005 reason` and `//lint:file-ignore`
+- gosec's `#nosec`
+- gocyclo's `//gocyclo:ignore`
+
+A directive applies to its own line. When the comment is alone on its line, it
+also applies to the next line.
+
+## Development
+
+Tasks use [Task](https://taskfile.dev); the Makefile has the same targets.
+
+```bash
+task install      # go install ./cmd/goquality
+task lint         # go vet + gofmt
+task test         # go test -race ./...
+task test-short   # skip tests that need network access
+task quality      # run goquality on itself (task quality -- -v for details)
+go test ./internal/check -run TestRun -v
 ```
 
-### License
+## Origins
 
-The code is licensed under the permissive Apache v2.0 license. [Read this](https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)) for a summary.
+goquality started as a fork of [Go Report Card](https://github.com/gojp/goreportcard)
+by Herman Schaaf and Shawn Smith, which has been sunset. The hosted web service
+is gone; the grading approach lives on as a local CLI. Licensed under the
+Apache License 2.0.
