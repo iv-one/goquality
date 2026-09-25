@@ -17,9 +17,10 @@ func TestNum(t *testing.T) {
 
 func TestText(t *testing.T) {
 	rep := check.Report{
-		Grade:  check.GradeA,
-		Score:  85,
-		Issues: 1,
+		Grade:     check.GradeA,
+		Score:     85,
+		Issues:    1,
+		NextSteps: []check.Step{{Check: "errcheck", Label: "errcheck", Gain: 6, Issues: 1, Files: 1, Hint: "Handle it."}},
 		Checks: []check.Result{{
 			Name: "errcheck", Label: "errcheck", Category: check.Correctness, Status: check.Warn, Summary: "1 issue",
 			Findings: []check.Finding{{File: "main.go", Line: 3, Column: 2, Message: "unchecked error"}},
@@ -30,6 +31,7 @@ func TestText(t *testing.T) {
 		"Grade .................................. A\n",
 		"Correctness\n  errcheck ....................... 1 issue\n",
 		"      main.go:3:2 unchecked error\n",
+		"Next steps (A+ needs > 90%: fix 1)\n  1.  +6.0%  errcheck  1 issue\n             Handle it.\n",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)

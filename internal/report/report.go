@@ -106,10 +106,80 @@ func Text(rep check.Report, opts TextOptions) string {
 		p.line(2, "suppressed", num(rep.Suppressed), "")
 	}
 	p.line(2, "time", fmt.Sprintf("%.1fs", rep.Duration), "")
-	if !opts.Verbose && rep.Issues > 0 {
-		fmt.Fprintln(w, p.color("2", "\nRun with --verbose to list issues."))
-	}
+	p.nextSteps(rep)
 	return w.String()
+}
+
+// maxSteps is how many next steps the text report shows.
+const maxSteps = 5
+
+func (p printer) nextSteps(rep check.Report) {
+	coverageSkipped := false
+	for _, r := range rep.Checks {
+		if r.Name == "coverage" && r.Status == check.Skipped {
+			coverageSkipped = true
+		}
+	}
+	if len(rep.NextSteps) == 0 && !coverageSkipped {
+		return
+	}
+
+	title := "Next steps"
+	if next, floor, ok := check.NextGrade(rep.Grade); ok {
+		if n := rep.StepsToGrade(floor); n > 0 {
+			title += fmt.Sprintf(" (%s needs > %.0f%%: fix %s)", next, floor, stepRange(n))
+		}
+	}
+	p.section(title)
+	steps := rep.NextSteps
+	if len(steps) > maxSteps {
+		steps = steps[:maxSteps]
+	}
+	labelWidth := 0
+	for _, s := range steps {
+		labelWidth = max(labelWidth, utf8.RuneCountInString(s.Label))
+	}
+	for i, s := range steps {
+		fmt.Fprintf(p.w, "  %d. %s  %-*s  %s\n", i+1, p.color("32", fmt.Sprintf("%+5.1f%%", s.Gain)),
+			labelWidth, s.Label, p.color("2", issuesIn(s)))
+		if s.Hint != "" {
+			fmt.Fprintf(p.w, "             %s\n", s.Hint)
+		}
+	}
+	if more := len(rep.NextSteps) - len(steps); more > 0 {
+		fmt.Fprintf(p.w, "  ... %d more\n", more)
+	}
+	if coverageSkipped {
+		fmt.Fprintln(p.w, p.color("2", "  Coverage was not measured; run with --cover to include it."))
+	}
+	if len(rep.NextSteps) > 0 && !p.opts.Verbose {
+		fmt.Fprintf(p.w, p.color("2", "  List the issues: goquality -v --only %s\n"), rep.NextSteps[0].Check)
+	}
+}
+
+func stepRange(n int) string {
+	if n == 1 {
+		return "1"
+	}
+	return fmt.Sprintf("1-%d", n)
+}
+
+func issuesIn(s check.Step) string {
+	switch {
+	case s.Issues == 0:
+		return ""
+	case s.Files <= 1:
+		return plural(s.Issues, "issue")
+	default:
+		return fmt.Sprintf("%s in %s", plural(s.Issues, "issue"), plural(s.Files, "file"))
+	}
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return "1 " + word
+	}
+	return fmt.Sprintf("%d %ss", n, word)
 }
 
 func (p printer) result(r check.Result) {
