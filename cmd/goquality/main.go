@@ -42,6 +42,7 @@ type options struct {
 	noSecurity bool
 	noColor    bool
 	skip       string
+	only       string
 	minScore   float64
 	cyclo      int
 	version    bool
@@ -71,9 +72,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return exitCode(err)
 	}
 
-	skip, err := parseSkip(o.skip)
+	skip, err := parseChecks(o.skip)
 	if err != nil {
-		logf("%v", err)
+		logf("--skip: %v", err)
+		return 2
+	}
+	only, err := parseChecks(o.only)
+	if err != nil {
+		logf("--only: %v", err)
 		return 2
 	}
 	dir, patterns := target(o)
@@ -91,7 +97,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	status.set("analyzing " + displayName(p))
-	checks := check.Filter(check.All(), skip, !o.noSecurity)
+	checks := check.Filter(check.All(), only, skip, !o.noSecurity)
 	rep := check.Run(ctx, p, checks, check.Options{
 		CyclomaticThreshold: o.cyclo,
 		Coverage:            o.cover,
@@ -127,6 +133,7 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 	fs.BoolVar(&o.noSecurity, "no-security", false, "skip security checks (govulncheck, gosec)")
 	fs.BoolVar(&o.noColor, "no-color", false, "disable colored output")
 	fs.StringVar(&o.skip, "skip", "", "comma-separated `checks` to skip, e.g. misspell,gosec")
+	fs.StringVar(&o.only, "only", "", "comma-separated `checks` to run, e.g. errcheck,govet (for quick re-checks)")
 	fs.Float64Var(&o.minScore, "min-score", 0, "exit with status 1 if the score is below `percent`")
 	fs.IntVar(&o.cyclo, "cyclo-over", 15, "report functions with cyclomatic complexity above `n`")
 	fs.BoolVar(&o.version, "version", false, "print version and exit")
@@ -161,12 +168,12 @@ func target(o options) (dir string, patterns []string) {
 	return o.dir, o.args
 }
 
-func parseSkip(list string) (map[string]bool, error) {
+func parseChecks(list string) (map[string]bool, error) {
 	known := make(map[string]bool)
 	for _, name := range checkNames() {
 		known[name] = true
 	}
-	skip := make(map[string]bool)
+	set := make(map[string]bool)
 	for _, name := range strings.Split(list, ",") {
 		name = strings.TrimSpace(name)
 		if name == "" {
@@ -175,9 +182,9 @@ func parseSkip(list string) (map[string]bool, error) {
 		if !known[name] {
 			return nil, fmt.Errorf("unknown check %q (available: %s)", name, strings.Join(checkNames(), ", "))
 		}
-		skip[name] = true
+		set[name] = true
 	}
-	return skip, nil
+	return set, nil
 }
 
 func render(w io.Writer, rep check.Report, o options) error {

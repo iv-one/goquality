@@ -81,6 +81,7 @@ goquality --json           # machine-readable report
 goquality --cover          # also run tests and measure coverage
 goquality --no-security    # skip govulncheck and gosec (e.g. offline)
 goquality --skip misspell,gosec
+goquality --only errcheck  # quick re-check of specific checks
 goquality --min-score 90   # exit 1 if the score is below 90%
 ```
 

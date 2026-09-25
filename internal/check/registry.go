@@ -19,12 +19,13 @@ func All() []Check {
 	}
 }
 
-// Filter returns the checks whose names are not in skip. Security checks are
-// dropped when security is false.
-func Filter(checks []Check, skip map[string]bool, security bool) []Check {
+// Filter selects checks by name. When only is non-empty, just those checks
+// run; checks in skip never run. Security checks are dropped when security is
+// false.
+func Filter(checks []Check, only, skip map[string]bool, security bool) []Check {
 	var out []Check
 	for _, c := range checks {
-		if skip[c.Name()] || (!security && c.Category() == Security) {
+		if (len(only) > 0 && !only[c.Name()]) || skip[c.Name()] || (!security && c.Category() == Security) {
 			continue
 		}
 		out = append(out, c)
