@@ -53,6 +53,12 @@ func TestRun(t *testing.T) {
 	for _, r := range rep.Checks {
 		byName[r.Name] = r
 	}
+	if got := byName["staticcheck"].Findings[0].Fix; got != "replace with strings.EqualFold" {
+		t.Errorf("SA6005 fix = %q", got)
+	}
+	if got := byName["gofmt"].Findings[0].Fix; got != "gofmt -w lib/ugly.go" {
+		t.Errorf("gofmt fix = %q", got)
+	}
 	if s := byName["gofmt"].Score; s == nil || *s != 0.75 {
 		t.Errorf("gofmt score = %v, want 0.75", s)
 	}
@@ -113,6 +119,22 @@ func TestDirectiveMatches(t *testing.T) {
 	for _, tt := range tests {
 		if got := tt.d.matches(tt.check, tt.rule); got != tt.want {
 			t.Errorf("%q.matches(%q, %q) = %v, want %v", tt.d, tt.check, tt.rule, got, tt.want)
+		}
+	}
+}
+
+func TestVulnFix(t *testing.T) {
+	tests := []struct {
+		v    vuln
+		want string
+	}{
+		{vuln{module: "golang.org/x/text", fixed: "v0.3.8"}, "go get golang.org/x/text@v0.3.8"},
+		{vuln{module: "stdlib", fixed: "v1.26.1"}, "build with Go 1.26.1 or later"},
+		{vuln{module: "example.com/m"}, ""},
+	}
+	for _, tt := range tests {
+		if got := vulnFix(&tt.v); got != tt.want {
+			t.Errorf("vulnFix(%+v) = %q, want %q", tt.v, got, tt.want)
 		}
 	}
 }

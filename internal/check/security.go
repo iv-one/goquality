@@ -175,6 +175,7 @@ func vulnResult(vulns map[string]*vuln) Result {
 		}
 		f := v.finding
 		f.Rule = id
+		f.Fix = vulnFix(v)
 		f.Message = fmt.Sprintf("%s: %s (%s@%s, %s)", id, v.summary, v.module, v.version, fix)
 		findings = append(findings, f)
 	}
@@ -190,6 +191,17 @@ func vulnResult(vulns map[string]*vuln) Result {
 			{Key: "imported_not_called", Label: "imported, not called", Value: counts[vulnPackage]},
 			{Key: "required_not_imported", Label: "required, not imported", Value: counts[vulnModule]},
 		},
+	}
+}
+
+func vulnFix(v *vuln) string {
+	switch {
+	case v.fixed == "":
+		return ""
+	case v.module == "stdlib" || v.module == "toolchain":
+		return "build with Go " + strings.TrimPrefix(v.fixed, "v") + " or later"
+	default:
+		return "go get " + v.module + "@" + v.fixed
 	}
 }
 

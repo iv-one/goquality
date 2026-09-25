@@ -56,6 +56,7 @@ type Finding struct {
 	Rule     string `json:"rule,omitempty"`
 	Severity string `json:"severity,omitempty"` // as defined by the underlying tool
 	Message  string `json:"message"`
+	Fix      string `json:"fix,omitempty"` // how to fix it, when known
 }
 
 // Metric is a labeled value displayed with a check.

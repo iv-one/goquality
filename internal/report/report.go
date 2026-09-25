@@ -139,6 +139,9 @@ func (p printer) result(r check.Result) {
 		if f.Rule != "" && !strings.HasPrefix(f.Message, f.Rule) {
 			msg += p.color("2", " ("+f.Rule+")")
 		}
+		if f.Fix != "" {
+			msg += p.color("2", " → "+f.Fix)
+		}
 		if loc != "" {
 			fmt.Fprintf(p.w, "      %s %s\n", p.color("36", loc), msg)
 		} else {

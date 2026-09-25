@@ -91,7 +91,7 @@ func GoFmt() Check {
 			if err != nil || bytes.Equal(src, out) {
 				continue
 			}
-			findings = append(findings, Finding{File: f.Rel, Line: firstDiffLine(src, out), Message: "file is not gofmt-ed"})
+			findings = append(findings, Finding{File: f.Rel, Line: firstDiffLine(src, out), Message: "file is not gofmt-ed", Fix: "gofmt -w " + f.Rel})
 		}
 		score := fileScore(len(files), findings)
 		r := Result{Findings: findings, Score: score}

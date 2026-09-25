@@ -82,10 +82,22 @@ func (e *Env) runAnalysis() error {
 				Column:  pos.Column,
 				Rule:    act.Analyzer.Name,
 				Message: d.Message,
+				Fix:     fixMessage(d),
 			})
 		}
 	}
 	return nil
+}
+
+// fixMessage returns the description of the first suggested fix that has
+// one. Many analyzers attach machine-applicable fixes to their diagnostics.
+func fixMessage(d analysis.Diagnostic) string {
+	for _, f := range d.SuggestedFixes {
+		if f.Message != "" {
+			return f.Message
+		}
+	}
+	return ""
 }
 
 // analyzerCheck is a check backed by one or more go/analysis analyzers.
