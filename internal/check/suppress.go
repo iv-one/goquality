@@ -1,13 +1,14 @@
 package check
 
 import (
-	"bufio"
 	"bytes"
-	"os"
+	"context"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/iv-one/goquality/internal/project"
 )
 
 // nolintNames maps check names to the linter names used in //nolint
@@ -19,9 +20,9 @@ var nolintNames = map[string][]string{
 }
 
 var (
-	nolintRe      = regexp.MustCompile(`//\s*nolint(?::([\w,-]+))?`)
-	lintIgnoreRe  = regexp.MustCompile(`//lint:ignore\s+(\S+)`)
-	lintFileIgnRe = regexp.MustCompile(`//lint:file-ignore\s+(\S+)`)
+	nolintRe      = regexp.MustCompile(`^//\s*nolint(?::([\w,-]+))?(?:\s|$)`)
+	lintIgnoreRe  = regexp.MustCompile(`^//lint:ignore\s+(\S+)`)
+	lintFileIgnRe = regexp.MustCompile(`^//lint:file-ignore\s+(\S+)`)
 )
 
 // directive suppresses findings of the listed linters or rules; an empty
@@ -49,14 +50,35 @@ func (d directive) matches(check, rule string) bool {
 type fileDirectives struct {
 	lines map[int][]directive
 	file  []directive
+	// vague lists lines with a //nolint that names no linter or gives no
+	// reason, e.g. "//nolint" or "//nolint:errcheck" without "// why".
+	vague []int
 }
 
 type suppressions struct {
-	mu    sync.Mutex
-	files map[string]*fileDirectives
+	project *project.Project
+	mu      sync.Mutex
+	files   map[string]*fileDirectives
+	count   map[string]int // suppressed findings per check
 }
 
-func (s *suppressions) init() { s.files = make(map[string]*fileDirectives) }
+func (s *suppressions) init(p *project.Project) {
+	s.project = p
+	s.files = make(map[string]*fileDirectives)
+	s.count = make(map[string]int)
+}
+
+func (s *suppressions) record(check string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.count[check]++
+}
+
+func (s *suppressions) suppressedCount(check string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.count[check]
+}
 
 func (s *suppressions) get(path string) *fileDirectives {
 	s.mu.Lock()
@@ -64,50 +86,71 @@ func (s *suppressions) get(path string) *fileDirectives {
 	if fd, ok := s.files[path]; ok {
 		return fd
 	}
-	fd := parseDirectives(path)
+	fd := parseDirectives(s.project, path)
 	s.files[path] = fd
 	return fd
 }
 
-// parseDirectives finds //nolint and staticcheck //lint:ignore directives. A
-// directive applies to its own line and, when it is the only thing on its
-// line, to the following line.
-func parseDirectives(path string) *fileDirectives {
+// parseDirectives finds //nolint and staticcheck //lint:ignore directives
+// among a file's comments. A directive applies to its own line and, when the
+// comment is alone on its line, to the following line.
+func parseDirectives(p *project.Project, path string) *fileDirectives {
 	fd := &fileDirectives{lines: make(map[int][]directive)}
-	data, err := os.ReadFile(path) //nolint:gosec // path is a project source file
-	if err != nil || !bytes.Contains(data, []byte("lint")) {
+	f := p.File(path)
+	if f == nil {
 		return fd
 	}
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(nil, 1<<20)
-	for n := 1; sc.Scan(); n++ {
-		line := sc.Text()
-		if !strings.Contains(line, "lint") {
-			continue
-		}
-		var d directive
-		found := false
-		if m := nolintRe.FindStringSubmatch(line); m != nil {
-			found = true
-			d = splitList(m[1])
-		} else if m := lintIgnoreRe.FindStringSubmatch(line); m != nil {
-			found = true
-			d = splitList(m[1])
-		} else if m := lintFileIgnRe.FindStringSubmatch(line); m != nil {
-			fd.file = append(fd.file, splitList(m[1]))
-		}
-		if !found {
-			continue
-		}
-		fd.lines[n] = append(fd.lines[n], d)
-		if strings.HasPrefix(strings.TrimSpace(line), "//") {
-			fd.lines[n+1] = append(fd.lines[n+1], d)
-		}
+	src, err := f.ReadFile()
+	if err != nil {
+		return fd
 	}
-	if sc.Err() != nil {
-		return &fileDirectives{lines: make(map[int][]directive)}
+	lines := bytes.Split(src, []byte("\n"))
+	for _, group := range f.Syntax.Comments {
+		for _, c := range group.List {
+			if !strings.Contains(c.Text, "lint") {
+				continue
+			}
+			n := p.Fset.Position(c.Pos()).Line
+			d, ok := fd.parse(c.Text, n)
+			if !ok {
+				continue
+			}
+			fd.lines[n] = append(fd.lines[n], d)
+			if n <= len(lines) && bytes.HasPrefix(bytes.TrimSpace(lines[n-1]), []byte(c.Text)) {
+				fd.lines[n+1] = append(fd.lines[n+1], d)
+			}
+		}
 	}
 	return fd
+}
+
+// parse interprets a comment as a directive. It reports whether the comment
+// is a line directive; file-level directives are recorded directly.
+func (fd *fileDirectives) parse(text string, line int) (directive, bool) {
+	if m := nolintRe.FindStringSubmatchIndex(text); m != nil {
+		var d directive
+		if m[2] >= 0 {
+			d = splitList(text[m[2]:m[3]])
+		}
+		if len(d) == 0 || !explained(text[m[1]:]) {
+			fd.vague = append(fd.vague, line)
+		}
+		return d, true
+	}
+	if m := lintIgnoreRe.FindStringSubmatch(text); m != nil {
+		return splitList(m[1]), true
+	}
+	if m := lintFileIgnRe.FindStringSubmatch(text); m != nil {
+		fd.file = append(fd.file, splitList(m[1]))
+	}
+	return nil, false
+}
+
+// explained reports whether the text after a //nolint directive carries a
+// "// reason" comment, as golangci-lint's nolintlint requires.
+func explained(rest string) bool {
+	_, reason, ok := strings.Cut(rest, "//")
+	return ok && strings.TrimSpace(reason) != ""
 }
 
 func splitList(s string) directive {
@@ -137,15 +180,32 @@ func (e *Env) suppressed(check string, f Finding) bool {
 		return false
 	}
 	fd := e.suppress.get(filepath.Join(e.Project.Root, filepath.FromSlash(f.File)))
-	for _, d := range fd.file {
+	for _, d := range append(fd.file, fd.lines[f.Line]...) {
 		if d.matches(check, f.Rule) {
-			return true
-		}
-	}
-	for _, d := range fd.lines[f.Line] {
-		if d.matches(check, f.Rule) {
+			e.suppress.record(check)
 			return true
 		}
 	}
 	return false
+}
+
+// Nolint reports //nolint directives that do not name the linters they
+// silence or do not explain why. Suppressions are sometimes right, but each
+// one should be deliberate and reviewable.
+func Nolint() Check {
+	return checkFunc{name: "nolint", category: Maintainability, weight: 0.05, run: func(_ context.Context, env *Env) Result {
+		files := env.Project.SourceFiles(true)
+		var findings []Finding
+		for _, f := range files {
+			for _, line := range env.suppress.get(f.Path).vague {
+				findings = append(findings, Finding{
+					File:    f.Rel,
+					Line:    line,
+					Message: "//nolint must name the linters and give a reason",
+					Fix:     "use //nolint:<linter> // <reason>, or fix the underlying issue",
+				})
+			}
+		}
+		return Result{Findings: findings, Score: fileScore(len(files), findings)}
+	}}
 }

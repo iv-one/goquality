@@ -11,6 +11,7 @@ func All() []Check {
 		GoFmt(),
 		Complexity(),
 		Misspell(),
+		Nolint(),
 		License(),
 		TestPresence(),
 		Coverage(),

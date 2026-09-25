@@ -77,9 +77,12 @@ type Result struct {
 	Score    *float64  `json:"score,omitempty"` // 0..1; nil when not scored
 	Metrics  []Metric  `json:"metrics,omitempty"`
 	Findings []Finding `json:"findings,omitempty"`
-	Note     string    `json:"note,omitempty"`  // extra context, e.g. partial failures
-	Error    string    `json:"error,omitempty"` // why the check could not run
-	Duration float64   `json:"duration_seconds"`
+	// Suppressed counts findings silenced by //nolint, //lint:ignore and
+	// similar directives. They are excluded from Findings and the score.
+	Suppressed int     `json:"suppressed,omitempty"`
+	Note       string  `json:"note,omitempty"`  // extra context, e.g. partial failures
+	Error      string  `json:"error,omitempty"` // why the check could not run
+	Duration   float64 `json:"duration_seconds"`
 }
 
 // Options configure a run.
@@ -102,12 +105,13 @@ type Env struct {
 
 // Report is the combined result of a run.
 type Report struct {
-	Stats    project.Stats `json:"project"`
-	Grade    Grade         `json:"grade"`
-	Score    float64       `json:"score"` // 0..100
-	Issues   int           `json:"issues"`
-	Checks   []Result      `json:"checks"`
-	Duration float64       `json:"duration_seconds"`
+	Stats      project.Stats `json:"project"`
+	Grade      Grade         `json:"grade"`
+	Score      float64       `json:"score"` // 0..100
+	Issues     int           `json:"issues"`
+	Suppressed int           `json:"suppressed"`
+	Checks     []Result      `json:"checks"`
+	Duration   float64       `json:"duration_seconds"`
 }
 
 // Run runs checks concurrently against a loaded project.
@@ -117,7 +121,7 @@ func Run(ctx context.Context, p *project.Project, checks []Check, opts Options) 
 		opts.CyclomaticThreshold = 15
 	}
 	env := &Env{Project: p, Options: opts}
-	env.suppress.init()
+	env.suppress.init(p)
 	for _, c := range checks {
 		if ac, ok := c.(interface{ analyzerSet() analyzerSet }); ok {
 			env.analysis.register(ac.analyzerSet())
@@ -136,6 +140,7 @@ func Run(ctx context.Context, p *project.Project, checks []Check, opts Options) 
 			}
 			r.Category = c.Category()
 			r.Weight = c.Weight()
+			r.Suppressed = env.suppress.suppressedCount(r.Name)
 			finalize(&r)
 			r.Duration = time.Since(t).Seconds()
 			results[i] = r
@@ -147,6 +152,7 @@ func Run(ctx context.Context, p *project.Project, checks []Check, opts Options) 
 	var total, weight float64
 	for _, r := range results {
 		rep.Issues += len(r.Findings)
+		rep.Suppressed += r.Suppressed
 		if r.Score != nil && r.Weight > 0 {
 			total += *r.Score * r.Weight
 			weight += r.Weight

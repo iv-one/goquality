@@ -102,6 +102,9 @@ func Text(rep check.Report, opts TextOptions) string {
 
 	p.section("Overall")
 	p.line(2, "issues", num(rep.Issues), "")
+	if rep.Suppressed > 0 {
+		p.line(2, "suppressed", num(rep.Suppressed), "")
+	}
 	p.line(2, "time", fmt.Sprintf("%.1fs", rep.Duration), "")
 	if !opts.Verbose && rep.Issues > 0 {
 		fmt.Fprintln(w, p.color("2", "\nRun with --verbose to list issues."))
