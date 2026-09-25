@@ -39,5 +39,6 @@ The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text`
   - **gosec** runs through `CheckRules`/`CheckAnalyzers` on the already-loaded packages, with one `gosec.Analyzer` per worker because instances aren't concurrency-safe. Its `Process` API re-runs `go list` per directory and was about 10x slower.
   - **govulncheck** runs in-process through `golang.org/x/vuln/scan` with `-json`. Its message types are internal to x/vuln, so `security.go` mirrors the fields it needs. Reachability comes from the first trace frame: function means called, package means imported, neither means only required.
   - **coverage** shells out to `go test -json -vet=off -coverprofile` and is opt-in (`--cover`) because it executes project code.
+- **Next steps** (`check/next.go`): each unfinished check's exact gain, `weight*(1-score)/totalWeight`, ranked, with per-check hints from the `hints` map. A new check should get a hint there.
 - **`internal/report`** renders text (dotted `label .... value` lines, colors only on a TTY) and JSON (`check.Report` as-is).
 - **`internal/testdata/sample`** is a fixture module with one known issue per check. `TestRun` asserts exact findings (`file:line rule`), and `TestLoadStats` asserts exact stats, so changing the fixture means updating both. It is deliberately not gofmt-clean.

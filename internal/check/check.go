@@ -111,6 +111,7 @@ type Report struct {
 	Issues     int           `json:"issues"`
 	Suppressed int           `json:"suppressed"`
 	Checks     []Result      `json:"checks"`
+	NextSteps  []Step        `json:"next_steps,omitempty"`
 	Duration   float64       `json:"duration_seconds"`
 }
 
@@ -161,6 +162,7 @@ func Run(ctx context.Context, p *project.Project, checks []Check, opts Options) 
 	if weight > 0 {
 		rep.Score = total / weight * 100
 	}
+	rep.NextSteps = nextSteps(results, weight)
 	rep.Grade = GradeFromPercentage(rep.Score)
 	rep.Duration = time.Since(start).Seconds()
 	return rep

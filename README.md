@@ -85,6 +85,20 @@ goquality --only errcheck  # quick re-check of specific checks
 goquality --min-score 90   # exit 1 if the score is below 90%
 ```
 
+Every report ends with **next steps**: the checks ranked by how many score
+points fixing them would add, with a hint for each and how many to fix for the
+next grade:
+
+```text
+Next steps (A needs > 80%: fix 1-2)
+  1.  +8.3%  go vet        2 issues in 2 files
+             Fix the reported problems; go vet findings are almost always real bugs.
+  2.  +6.2%  staticcheck   2 issues in 2 files
+             Apply the suggested fixes; each rule is documented at https://staticcheck.dev/docs/checks/.
+```
+
+The same data is in the JSON report as `next_steps`.
+
 Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
 
 `--cover` is opt-in because it executes the project's tests.
