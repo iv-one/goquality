@@ -68,3 +68,30 @@ func TestRunOnly(t *testing.T) {
 		t.Errorf("checks = %v, want [errcheck gofmt]", names)
 	}
 }
+
+func TestRunAgent(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		env   string
+		args  []string
+		agent bool
+	}{
+		{"flag", "", []string{"--agent"}, true},
+		{"claude code", "1", nil, true},
+		{"claude code, explicit off", "1", []string{"--agent=false"}, false},
+		{"plain", "", nil, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("CLAUDECODE", tt.env)
+			var stdout, stderr bytes.Buffer
+			args := append([]string{sample, "--only", "errcheck"}, tt.args...)
+			if code := run(args, &stdout, &stderr); code != 0 {
+				t.Fatalf("exit code %d, stderr: %s", code, stderr.String())
+			}
+			got := strings.HasPrefix(stdout.String(), "goquality: grade")
+			if got != tt.agent {
+				t.Errorf("agent format = %v, want %v:\n%s", got, tt.agent, stdout.String())
+			}
+		})
+	}
+}

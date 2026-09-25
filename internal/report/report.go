@@ -125,10 +125,8 @@ func (p printer) nextSteps(rep check.Report) {
 	}
 
 	title := "Next steps"
-	if next, floor, ok := check.NextGrade(rep.Grade); ok {
-		if n := rep.StepsToGrade(floor); n > 0 {
-			title += fmt.Sprintf(" (%s needs > %.0f%%: fix %s)", next, floor, stepRange(n))
-		}
+	if target := gradeTarget(rep); target != "" {
+		title += " (" + target + ")"
 	}
 	p.section(title)
 	steps := rep.NextSteps
@@ -155,6 +153,20 @@ func (p printer) nextSteps(rep check.Report) {
 	if len(rep.NextSteps) > 0 && !p.opts.Verbose {
 		fmt.Fprintf(p.w, p.color("2", "  List the issues: goquality -v --only %s\n"), rep.NextSteps[0].Check)
 	}
+}
+
+// gradeTarget describes how many next steps reach the next grade, e.g.
+// "A+ needs > 90%: fix 1-2", or returns "" when there is no such path.
+func gradeTarget(rep check.Report) string {
+	next, floor, ok := check.NextGrade(rep.Grade)
+	if !ok {
+		return ""
+	}
+	n := rep.StepsToGrade(floor)
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s needs > %.0f%%: fix %s", next, floor, stepRange(n))
 }
 
 func stepRange(n int) string {

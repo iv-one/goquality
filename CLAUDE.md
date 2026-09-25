@@ -40,5 +40,10 @@ The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text`
   - **govulncheck** runs in-process through `golang.org/x/vuln/scan` with `-json`. Its message types are internal to x/vuln, so `security.go` mirrors the fields it needs. Reachability comes from the first trace frame: function means called, package means imported, neither means only required.
   - **coverage** shells out to `go test -json -vet=off -coverprofile` and is opt-in (`--cover`) because it executes project code.
 - **Next steps** (`check/next.go`): each unfinished check's exact gain, `weight*(1-score)/totalWeight`, ranked, with per-check hints from the `hints` map. A new check should get a hint there.
-- **`internal/report`** renders text (dotted `label .... value` lines, colors only on a TTY) and JSON (`check.Report` as-is).
+- **`internal/report`** renders three formats:
+  - text: dotted `label .... value` lines, with colors only on a TTY
+  - JSON: `check.Report` as-is
+  - agent (`agent.go`): compact and token-conscious, with findings capped and prioritized by next-step gain. It's the default when `CLAUDECODE` is set and stdout isn't a TTY; see `useAgentFormat`.
+
+  Anything an agent needs to act on (fix hints, suggested fixes, re-check commands) must show up in the agent format.
 - **`internal/testdata/sample`** is a fixture module with one known issue per check. `TestRun` asserts exact findings (`file:line rule`), and `TestLoadStats` asserts exact stats, so changing the fixture means updating both. It is deliberately not gofmt-clean.
