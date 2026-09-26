@@ -1,5 +1,8 @@
 # goquality
 
+[![Go Quality score](https://raw.githubusercontent.com/iv-one/goquality/quality-history/badges/score.svg)](https://github.com/iv-one/goquality/blob/quality-history/report.txt)
+[![Go Quality grade](https://raw.githubusercontent.com/iv-one/goquality/quality-history/badges/grade.svg)](https://github.com/iv-one/goquality/blob/quality-history/report.txt)
+
 `goquality` gives developers, coding agents and CI a fast summary of the
 health of a Go codebase: correctness, maintainability, tests and security, in
 one command and one binary.
@@ -238,6 +241,75 @@ subdirectory. Without the action, the same steps are
 
 For pull requests into a branch other than the default, set
 `args: --baseline origin/${{ github.base_ref }}`.
+
+## README badges
+
+`goquality badges` writes two static SVG badges from the report's score and
+grade: `score.svg` ("Go Quality | 93/100") and `grade.svg` ("Go Quality |
+A+"). They are self-contained, with no scripts or remote assets, and the same
+result always gives the same bytes.
+
+```bash
+goquality badges                         # analyze, write badges/score.svg and badges/grade.svg
+goquality badges -o /tmp/b --cover       # include coverage in the score
+goquality badges --from snapshot.json    # render a snapshot from goquality collect
+```
+
+No badge service is needed. CI renders the badges for the default branch and
+commits them to a `quality-history` branch, and GitHub serves them from
+there. Create the branch once:
+
+```bash
+git switch --orphan quality-history && git commit --allow-empty -m "Start quality history"
+git push origin quality-history && git switch -
+```
+
+Then add a job that runs on pushes to main. The action installs goquality, so
+later steps can run it too:
+
+```yaml
+badges:
+  if: github.ref == 'refs/heads/main'
+  runs-on: ubuntu-latest
+  permissions:
+    contents: write
+  concurrency: quality-history
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+    - uses: iv-one/goquality@v0
+      with:
+        command: badges
+        args: -o ${{ runner.temp }}/badges
+    - run: '"$(go env GOPATH)/bin/goquality" -v > "$RUNNER_TEMP/report.txt"'
+    - uses: actions/checkout@v4
+      with:
+        ref: quality-history
+        path: quality-history
+    - working-directory: quality-history
+      run: |
+        mkdir -p badges && cp "$RUNNER_TEMP"/badges/*.svg badges/
+        cp "$RUNNER_TEMP/report.txt" .
+        git add badges report.txt
+        git diff --cached --quiet && exit 0
+        git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+          commit -m "Update badges and report for ${GITHUB_SHA::7}"
+        git push
+```
+
+The job also saves the full report (`goquality -v`) as `report.txt`, so the
+badges can link to the details behind the score. Reference them from the
+README, replacing `OWNER/REPO`:
+
+```markdown
+[![Go Quality score](https://raw.githubusercontent.com/OWNER/REPO/quality-history/badges/score.svg)](https://github.com/OWNER/REPO/blob/quality-history/report.txt)
+[![Go Quality grade](https://raw.githubusercontent.com/OWNER/REPO/quality-history/badges/grade.svg)](https://github.com/OWNER/REPO/blob/quality-history/report.txt)
+```
+
+GitHub caches README images for a few minutes, so a new score can take a
+moment to show up.
 
 ## Checks
 
