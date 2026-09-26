@@ -1,4 +1,4 @@
-goquality report for iv-one/goquality@5535300f044aae2faa93f44dce797c9cd631be86 (2026-09-26)
+goquality report for iv-one/goquality@5b5af4d225cf157c0998ba733a3d0380280d8db8 (2026-09-26)
 
 Go Quality  github.com/iv-one/goquality
 
@@ -6,7 +6,7 @@ Grade ................................. A+
 Score ............................. 100.0%
 
 Project
-  go version ...................... 1.26.0
+  go version ...................... 1.27.1
   packages ............................. 7
   go files ............................ 32
   test files .......................... 10
@@ -53,7 +53,7 @@ Security
 Overall
   issues ............................... 0
   suppressed ........................... 8
-  time .............................. 5.1s
+  time .............................. 3.8s
 
 Next steps
   Coverage was not measured; run with --cover to include it.
