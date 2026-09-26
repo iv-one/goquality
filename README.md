@@ -223,7 +223,7 @@ history so the baseline exists:
 - uses: actions/setup-go@v5
   with:
     go-version-file: go.mod
-- uses: iv-one/goquality@v1
+- uses: iv-one/goquality@v0
   with:
     args: --cover            # optional
 ```

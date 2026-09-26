@@ -19,7 +19,7 @@ inputs:
 runs:
   using: composite
   steps:
-    # Build from the action's own checkout, so @v1 of the action runs v1 of
+    # Build from the action's own checkout, so @v0 of the action runs v0 of
     # the tool, compiled with the project's Go toolchain (set up by
     # actions/setup-go before this step).
     - name: Install goquality

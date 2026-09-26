@@ -30,7 +30,7 @@ jobs:
       - name: goquality
         run: go run ./cmd/goquality --verbose --min-score 95
 
-      # Runs this repository's action.yml, as users would with iv-one/goquality@v1.
+      # Runs this repository's action.yml, as users would with iv-one/goquality@v0.
       - name: goquality check
         uses: ./
         with:
