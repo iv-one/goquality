@@ -1,0 +1,59 @@
+goquality report for iv-one/goquality (seeded locally; replaced by CI on the next push to main)
+
+Go Quality  github.com/iv-one/goquality
+
+Grade ................................. A+
+Score ............................. 100.0%
+
+Project
+  go version ...................... 1.26.0
+  packages ............................. 7
+  go files ............................ 32
+  test files .......................... 10
+  lines of code .................... 3,372
+  lines of test code ................. 969
+  functions .......................... 173
+  dependencies ........................ 15
+  direct dependencies .................. 9
+
+Correctness
+  build ............................. PASS
+  go vet ............................ PASS
+  staticcheck ....................... PASS
+  errcheck .......................... PASS
+  ineffassign ....................... PASS
+
+Maintainability
+  gofmt ............................. 100%
+  complexity ........................ 100%
+    average complexity ............... 4.4
+    max complexity .................... 15
+    most complex .. project.(*Project).computeStats
+    functions > 15 ..................... 0
+  misspell .......................... PASS
+  nolint ............................ PASS
+  license ........................ LICENSE
+
+Tests
+  tests ............................... 35
+    packages tested .................. 7/7
+    test files ........................ 10
+  coverage ............. skipped (--cover)
+
+Security
+  vulnerabilities ...................... 0
+    affected modules ................... 0
+    imported, not called ............... 0
+    required, not imported ............. 0
+  security findings .................... 0
+    high ............................... 0
+    medium ............................. 0
+    low ................................ 0
+
+Overall
+  issues ............................... 0
+  suppressed ........................... 8
+  time ............................. 16.1s
+
+Next steps
+  Coverage was not measured; run with --cover to include it.
