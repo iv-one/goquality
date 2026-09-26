@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `goquality` is a local CLI that summarizes the health of a Go project (correctness, maintainability, tests, security, project statistics) for developers, coding agents and CI. It started as a fork of Go Report Card (`gojp/goreportcard`); the web service, handlers, DB and repo-downloading code were removed and must not come back.
 
-- Single self-contained binary: every analyzer is linked in as a library. The only runtime dependency is the `go` command. Don't add checks that shell out to separately installed tools.
+- Single self-contained binary: every analyzer is linked in as a library. The only runtime dependency is the `go` command, plus git for `goquality check` against a revision. Don't add checks that shell out to separately installed tools.
 - The default invocation (`goquality` in a module root) must be useful with zero configuration. Don't add config files or knobs speculatively.
 - Prefer maintained ecosystem tools and APIs (`go/analysis`, `go/packages`, govulncheck, gosec) and keep their semantics: don't invent severities, and don't add exclusions beyond what the upstream tool does by default. Documented exception: gosec G104, which duplicates errcheck.
 
@@ -20,13 +20,14 @@ task lint                                # go vet + gofmt (testdata excluded)
 task test                                # go test -race ./...
 task test-short                          # skips TestGovulncheck (needs vuln.go.dev)
 task quality                             # goquality on itself, --min-score 95 (also in CI); task quality -- -v
+task check                               # goquality check on itself against origin/main (also in CI)
 go test ./internal/check -run TestRun -v # single test
 go run ./cmd/goquality -v internal/testdata/sample
 ```
 
 ## Architecture
 
-The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text` or `report.JSON`.
+The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text` or `report.JSON`. The `collect`, `compare` and `check` subcommands (`cmd/goquality/compare.go`) wrap the report in a snapshot and compare two of them.
 
 - **`internal/project`** loads packages once with `go/packages` (`LoadAllSyntax`, `Tests: true`).
   - `selectRoots` analyzes each package in its test variant (`p [p.test]`) instead of the plain package, plus xtest packages, and drops synthesized `.test` mains. Because of this, a diagnostic can appear twice, and the analysis pass dedupes them.
@@ -46,4 +47,6 @@ The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text`
   - agent (`agent.go`): compact and token-conscious, with findings capped and prioritized by next-step gain. It's the default when `CLAUDECODE` is set and stdout isn't a TTY; see `useAgentFormat`.
 
   Anything an agent needs to act on (fix hints, suggested fixes, re-check commands) must show up in the agent format.
+- **`internal/compare`** compares snapshots (`Snapshot` = `check.Report` + commit, version and the settings that change findings). The policy has no configuration. A check fails on a new finding, or, when it has no findings on either side (coverage), on a lower score. Findings are matched by `key` (file, rule, message with digits masked), never by line, with `LineHash` (hash of the flagged line's content, set by `Fingerprint`) breaking ties between identical findings. Snapshots with different patterns or `--cyclo-over` are refused.
+- **`internal/git`** is the only place that runs git. Only `check` needs it; `collect` records the commit when git is available. The baseline is the merge base with the first existing `DefaultRefs`, exported with `git archive` into a temp dir (extracted through `os.Root`), so the user's repository is never modified.
 - **`internal/testdata/sample`** is a fixture module with one known issue per check. `TestRun` asserts exact findings (`file:line rule`), and `TestLoadStats` asserts exact stats, so changing the fixture means updating both. It is deliberately not gofmt-clean.

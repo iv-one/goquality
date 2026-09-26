@@ -1,4 +1,5 @@
-// Package report renders a check.Report as text or JSON.
+// Package report renders a check.Report, or a comparison of two, as text,
+// JSON or the compact agent format.
 package report
 
 import (
@@ -210,28 +211,32 @@ func (p printer) result(r check.Result) {
 		return
 	}
 	for _, f := range r.Findings {
-		loc := f.File
-		if f.Line > 0 {
-			loc += ":" + strconv.Itoa(f.Line)
-			if f.Column > 0 {
-				loc += ":" + strconv.Itoa(f.Column)
-			}
+		p.finding(f)
+	}
+}
+
+func (p printer) finding(f check.Finding) {
+	loc := f.File
+	if f.Line > 0 {
+		loc += ":" + strconv.Itoa(f.Line)
+		if f.Column > 0 {
+			loc += ":" + strconv.Itoa(f.Column)
 		}
-		msg := f.Message
-		if f.Severity != "" {
-			msg = "[" + f.Severity + "] " + msg
-		}
-		if f.Rule != "" && !strings.HasPrefix(f.Message, f.Rule) {
-			msg += p.color("2", " ("+f.Rule+")")
-		}
-		if f.Fix != "" {
-			msg += p.color("2", " → "+f.Fix)
-		}
-		if loc != "" {
-			fmt.Fprintf(p.w, "      %s %s\n", p.color("36", loc), msg)
-		} else {
-			fmt.Fprintf(p.w, "      %s\n", msg)
-		}
+	}
+	msg := f.Message
+	if f.Severity != "" {
+		msg = "[" + f.Severity + "] " + msg
+	}
+	if f.Rule != "" && !strings.HasPrefix(f.Message, f.Rule) {
+		msg += p.color("2", " ("+f.Rule+")")
+	}
+	if f.Fix != "" {
+		msg += p.color("2", " → "+f.Fix)
+	}
+	if loc != "" {
+		fmt.Fprintf(p.w, "      %s %s\n", p.color("36", loc), msg)
+	} else {
+		fmt.Fprintf(p.w, "      %s\n", msg)
 	}
 }
 

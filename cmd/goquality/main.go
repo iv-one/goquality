@@ -4,6 +4,9 @@
 // Usage:
 //
 //	goquality [flags] [dir | packages]
+//	goquality collect [flags] [dir | packages]
+//	goquality compare [flags] baseline.json current.json
+//	goquality check [--baseline ref|file.json] [flags] [dir | packages]
 package main
 
 import (
@@ -18,23 +21,69 @@ import (
 	"strings"
 
 	"github.com/iv-one/goquality/internal/check"
+	"github.com/iv-one/goquality/internal/git"
 	"github.com/iv-one/goquality/internal/project"
 	"github.com/iv-one/goquality/internal/report"
 )
 
-const usage = `goquality reports the health of a Go project.
+var usages = map[string]string{
+	"report": `goquality reports the health of a Go project.
 
 Usage:
   goquality [flags] [dir | packages]
+  goquality collect | compare | check ... (run "goquality <command> -h")
 
 With no arguments, goquality analyzes ./... in the current directory.
 A single directory argument analyzes that directory recursively; otherwise
 arguments are package patterns, as for "go build".
 
+Commands:
+  collect   write a snapshot of the report, to compare later
+  compare   compare two snapshots and fail on regressions
+  check     compare the working tree with a baseline revision
+
 Flags:
-`
+`,
+	"collect": `Collect writes a snapshot of the report as JSON, with the commit and
+settings it was produced with.
+
+Usage:
+  goquality collect [flags] [dir | packages]
+
+Flags:
+`,
+	"compare": `Compare compares two snapshots written by "goquality collect".
+
+Usage:
+  goquality compare [flags] baseline.json current.json
+
+It fails when a check reports a finding that the baseline does not have,
+or when the score of a check without findings (such as coverage) falls.
+
+Exit codes: 0 no regressions, 1 regressions, 2 usage or load error.
+
+Flags:
+`,
+	"check": `Check compares the working tree, including uncommitted changes, with a
+baseline. By default that is the merge base of HEAD and the first of
+  ` + strings.Join(git.DefaultRefs, ", ") + `
+that exists. The baseline revision is exported to a temporary directory and
+analyzed with the same settings.
+
+Usage:
+  goquality check [--baseline ref | file.json] [flags] [dir | packages]
+
+It fails when a check reports a finding that the baseline does not have,
+or when the score of a check without findings (such as coverage) falls.
+
+Exit codes: 0 no regressions, 1 regressions, 2 usage or load error.
+
+Flags:
+`,
+}
 
 type options struct {
+	cmd        string // "report", "collect", "compare" or "check"
 	dir        string
 	verbose    bool
 	json       bool
@@ -48,6 +97,8 @@ type options struct {
 	minScore   float64
 	cyclo      int
 	version    bool
+	output     string   // collect: file to write the snapshot to
+	baseline   string   // check: git ref or snapshot file
 	args       []string // positional arguments
 }
 
@@ -56,13 +107,15 @@ func main() {
 }
 
 // run executes goquality and returns the process exit code: 0 on success,
-// 1 when the score is below --min-score, 2 on usage or load errors.
+// 1 when the score is below --min-score or a comparison finds regressions,
+// 2 on usage or load errors.
 func run(args []string, stdout, stderr io.Writer) int {
 	logf := func(format string, a ...any) {
 		_, _ = fmt.Fprintf(stderr, "goquality: "+format+"\n", a...)
 	}
 
-	o, err := parseFlags(args, stderr)
+	cmd, args := command(args)
+	o, err := parseFlags(cmd, args, stderr)
 	if errors.Is(err, flag.ErrHelp) {
 		return 0
 	}
@@ -75,21 +128,25 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return exitCode(err)
 	}
 
-	skip, err := parseChecks(o.skip)
-	if err != nil {
-		logf("--skip: %v", err)
-		return 2
-	}
-	only, err := parseChecks(o.only)
-	if err != nil {
-		logf("--only: %v", err)
-		return 2
-	}
-	dir, patterns := target(o)
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	if cmd == "compare" {
+		return runCompare(o, stdout, logf)
+	}
+	checks, err := selectChecks(o)
+	if err != nil {
+		logf("%v", err)
+		return 2
+	}
+	switch cmd {
+	case "collect":
+		return runCollect(ctx, o, checks, stdout, stderr, logf)
+	case "check":
+		return runCheck(ctx, o, checks, stdout, stderr, logf)
+	}
+
+	dir, patterns := target(o)
 	status := newStatus(stderr, !o.json && !o.agent)
 	status.set("loading packages")
 	p, err := project.Load(ctx, dir, patterns)
@@ -100,11 +157,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	status.set("analyzing " + displayName(p))
-	checks := check.Filter(check.All(), only, skip, !o.noSecurity)
-	rep := check.Run(ctx, p, checks, check.Options{
-		CyclomaticThreshold: o.cyclo,
-		Coverage:            o.cover,
-	})
+	rep := check.Run(ctx, p, checks, runOptions(o))
 	status.clear()
 	if ctx.Err() != nil {
 		logf("interrupted")
@@ -124,28 +177,56 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func parseFlags(args []string, stderr io.Writer) (options, error) {
-	var o options
-	fs := flag.NewFlagSet("goquality", flag.ContinueOnError)
+// command splits off the subcommand, if any; plain goquality is "report".
+func command(args []string) (string, []string) {
+	if len(args) > 0 {
+		switch args[0] {
+		case "collect", "compare", "check":
+			return args[0], args[1:]
+		}
+	}
+	return "report", args
+}
+
+func parseFlags(cmd string, args []string, stderr io.Writer) (options, error) {
+	o := options{cmd: cmd}
+	name := "goquality"
+	if cmd != "report" {
+		name += " " + cmd
+	}
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.StringVar(&o.dir, "C", ".", "change to `dir` before running")
-	fs.BoolVar(&o.verbose, "verbose", false, "list individual findings")
-	fs.BoolVar(&o.verbose, "v", false, "shorthand for --verbose")
-	fs.BoolVar(&o.json, "json", false, "print the report as JSON")
-	fs.BoolVar(&o.agent, "agent", false, "compact report for coding agents (default when run by Claude Code without a terminal)")
-	fs.IntVar(&o.maxFinds, "max-findings", 50, "findings listed by --agent (0 for all)")
-	fs.BoolVar(&o.cover, "cover", false, "run tests to measure coverage (executes project code)")
-	fs.BoolVar(&o.noSecurity, "no-security", false, "skip security checks (govulncheck, gosec)")
-	fs.BoolVar(&o.noColor, "no-color", false, "disable colored output")
-	fs.StringVar(&o.skip, "skip", "", "comma-separated `checks` to skip, e.g. misspell,gosec")
-	fs.StringVar(&o.only, "only", "", "comma-separated `checks` to run, e.g. errcheck,govet (for quick re-checks)")
-	fs.Float64Var(&o.minScore, "min-score", 0, "exit with status 1 if the score is below `percent`")
-	fs.IntVar(&o.cyclo, "cyclo-over", 15, "report functions with cyclomatic complexity above `n`")
-	fs.BoolVar(&o.version, "version", false, "print version and exit")
+	if cmd != "compare" {
+		fs.StringVar(&o.dir, "C", ".", "change to `dir` before running")
+		fs.BoolVar(&o.cover, "cover", false, "run tests to measure coverage (executes project code)")
+		fs.BoolVar(&o.noSecurity, "no-security", false, "skip security checks (govulncheck, gosec)")
+		fs.StringVar(&o.skip, "skip", "", "comma-separated `checks` to skip, e.g. misspell,gosec")
+		fs.StringVar(&o.only, "only", "", "comma-separated `checks` to run, e.g. errcheck,govet (for quick re-checks)")
+		fs.IntVar(&o.cyclo, "cyclo-over", 15, "report functions with cyclomatic complexity above `n`")
+	}
+	if cmd != "collect" {
+		fs.BoolVar(&o.verbose, "verbose", false, "list individual findings")
+		fs.BoolVar(&o.verbose, "v", false, "shorthand for --verbose")
+		fs.BoolVar(&o.json, "json", false, "print the report as JSON")
+		fs.BoolVar(&o.agent, "agent", false, "compact report for coding agents (default when run by Claude Code without a terminal)")
+		fs.IntVar(&o.maxFinds, "max-findings", 50, "findings listed by --agent (0 for all)")
+		fs.BoolVar(&o.noColor, "no-color", false, "disable colored output")
+	}
+	switch cmd {
+	case "report":
+		fs.Float64Var(&o.minScore, "min-score", 0, "exit with status 1 if the score is below `percent`")
+		fs.BoolVar(&o.version, "version", false, "print version and exit")
+	case "collect":
+		fs.StringVar(&o.output, "o", "", "write the snapshot to `file` instead of standard output")
+	case "check":
+		fs.StringVar(&o.baseline, "baseline", "", "git `ref` or snapshot file to compare with (default: the merge base with origin's default branch)")
+	}
 	fs.Usage = func() {
-		_, _ = fmt.Fprint(stderr, usage)
+		_, _ = fmt.Fprint(stderr, usages[cmd])
 		fs.PrintDefaults()
-		_, _ = fmt.Fprintf(stderr, "\nChecks: %s\n", strings.Join(checkNames(), ", "))
+		if cmd != "compare" {
+			_, _ = fmt.Fprintf(stderr, "\nChecks: %s\n", strings.Join(checkNames(), ", "))
+		}
 	}
 
 	// Allow flags after positional arguments: goquality ./... --json
@@ -175,7 +256,14 @@ func useAgentFormat(o options, args []string, stdout io.Writer) bool {
 // rerunCommand is the command that re-runs goquality on the same target in
 // agent mode.
 func rerunCommand(o options) string {
-	parts := []string{"goquality", "--agent"}
+	parts := []string{"goquality"}
+	if o.cmd != "report" {
+		parts = append(parts, o.cmd)
+	}
+	parts = append(parts, "--agent")
+	if o.baseline != "" {
+		parts = append(parts, "--baseline", o.baseline)
+	}
 	if o.dir != "." {
 		parts = append(parts, "-C", o.dir)
 	}
@@ -191,6 +279,24 @@ func target(o options) (dir string, patterns []string) {
 		}
 	}
 	return o.dir, o.args
+}
+
+// selectChecks returns the checks chosen by --only, --skip and
+// --no-security.
+func selectChecks(o options) ([]check.Check, error) {
+	skip, err := parseChecks(o.skip)
+	if err != nil {
+		return nil, fmt.Errorf("--skip: %w", err)
+	}
+	only, err := parseChecks(o.only)
+	if err != nil {
+		return nil, fmt.Errorf("--only: %w", err)
+	}
+	return check.Filter(check.All(), only, skip, !o.noSecurity), nil
+}
+
+func runOptions(o options) check.Options {
+	return check.Options{CyclomaticThreshold: o.cyclo, Coverage: o.cover}
 }
 
 func parseChecks(list string) (map[string]bool, error) {
@@ -230,9 +336,13 @@ func render(w io.Writer, rep check.Report, o options) error {
 	}
 	_, err := io.WriteString(w, report.Text(rep, report.TextOptions{
 		Verbose: o.verbose,
-		Color:   !o.noColor && isTerminal(w) && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb",
+		Color:   useColor(w, o),
 	}))
 	return err
+}
+
+func useColor(w io.Writer, o options) bool {
+	return !o.noColor && isTerminal(w) && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
 }
 
 func exitCode(err error) int {
