@@ -149,6 +149,86 @@ To make agents use goquality on their own, add a line like this to your
 Before finishing a change, run `goquality` and fix any new issues it reports.
 ```
 
+## Guarding against regressions
+
+`goquality check` answers "did this change make the project worse?". It
+compares the working tree, uncommitted changes included, with a baseline and
+exits 1 on a regression:
+
+```bash
+git fetch origin main
+goquality check                          # baseline: merge base with origin's default branch
+goquality check --baseline origin/release
+goquality check --cover                  # also guard coverage (runs the tests twice)
+```
+
+```text
+Baseline ............. origin/main@6dbe334
+Current ..... working tree@6dbe334+changes
+Score ...................... 93.1% → 92.0%
+
+Checks
+  errcheck .......... FAIL (1 new finding)
+  gofmt ................... PASS (2 fixed)
+  coverage .......... FAIL (78.4% → 78.1%)
+  ...
+
+Regressions
+  errcheck: 1 new finding
+      main.go:12:11 unchecked error
+  coverage: 78.4% → 78.1%
+
+FAILED: 2 checks regressed against origin/main
+```
+
+The baseline is the merge base of `HEAD` and the first of `origin/HEAD`,
+`origin/main`, `origin/master`, `main` and `master` that exists, so work that
+landed on main after you branched isn't counted against you. goquality exports
+that revision with `git archive` to a temporary directory and analyzes it with
+the same flags. The repository is left untouched, and git is only needed for
+this.
+
+The policy needs no configuration:
+
+- **New findings fail.** Existing findings don't block unrelated work. A
+  finding is identified by its check, file, rule and message (with numbers
+  ignored), not by its line, so edits that move code don't create false
+  positives. When a file has several identical findings, the content of the
+  flagged line tells them apart.
+- **For checks with no findings on either side, a falling score fails.** In
+  practice this is coverage.
+- Checks that didn't run on both sides are listed as not compared. A change
+  in the number of suppressed findings is shown, so a regression hidden
+  behind `//nolint` is visible.
+
+`--json` and `--agent` work as for the report. Exit codes: `0` no
+regressions, `1` regressions, `2` usage or load error.
+
+The same comparison works on saved snapshots, for example to keep a
+baseline outside git:
+
+```bash
+goquality collect -o base.json           # report + commit + settings, as JSON
+goquality compare base.json current.json
+goquality check --baseline base.json
+```
+
+In GitHub Actions, check out full history so the baseline exists:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+- uses: actions/setup-go@v5
+  with:
+    go-version-file: go.mod
+- run: go install github.com/iv-one/goquality/cmd/goquality@latest
+- run: goquality check
+```
+
+For pull requests into a branch other than the default, pass
+`--baseline origin/${{ github.base_ref }}`.
+
 ## Checks
 
 | Section | Check | What it measures | Weight |
@@ -213,6 +293,7 @@ task lint         # go vet + gofmt
 task test         # go test -race ./...
 task test-short   # skip tests that need network access
 task quality      # run goquality on itself (task quality -- -v for details)
+task check        # goquality check on itself: no regressions against origin/main
 go test ./internal/check -run TestRun -v
 ```
 

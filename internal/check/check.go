@@ -57,6 +57,10 @@ type Finding struct {
 	Severity string `json:"severity,omitempty"` // as defined by the underlying tool
 	Message  string `json:"message"`
 	Fix      string `json:"fix,omitempty"` // how to fix it, when known
+	// LineHash identifies the flagged source line by its content, so that
+	// a comparison can tell identical findings apart after lines move. It
+	// is only set in snapshots.
+	LineHash string `json:"line_hash,omitempty"`
 }
 
 // Metric is a labeled value displayed with a check.

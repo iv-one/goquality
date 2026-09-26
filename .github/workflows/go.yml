@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # goquality check needs the baseline commit.
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -26,3 +29,6 @@ jobs:
 
       - name: goquality
         run: go run ./cmd/goquality --verbose --min-score 95
+
+      - name: goquality check
+        run: go run ./cmd/goquality check --verbose

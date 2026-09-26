@@ -30,6 +30,9 @@ var hints = map[string]string{
 	"gosec":       "Fix HIGH and MEDIUM findings first; they are the ones that affect the score.",
 }
 
+// Hint returns how to resolve a check's findings, or "" if there is no hint.
+func Hint(check string) string { return hints[check] }
+
 // nextSteps ranks the checks that are not at 100% by how much the overall
 // score would rise if they were.
 func nextSteps(results []Result, totalWeight float64) []Step {
@@ -51,7 +54,7 @@ func nextSteps(results []Result, totalWeight float64) []Step {
 			Gain:   r.Weight * (1 - *r.Score) / totalWeight * 100,
 			Issues: len(r.Findings),
 			Files:  len(files),
-			Hint:   hints[r.Name],
+			Hint:   Hint(r.Name),
 		})
 	}
 	sort.SliceStable(steps, func(i, j int) bool { return steps[i].Gain > steps[j].Gain })

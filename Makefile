@@ -1,4 +1,4 @@
-.PHONY: all build install lint test test-short quality
+.PHONY: all build install lint test test-short quality check
 
 all: lint test build
 
@@ -22,3 +22,7 @@ test-short:
 # Run goquality on itself.
 quality:
 	go run ./cmd/goquality --min-score 95
+
+# Compare with the merge base of origin's default branch; fail on regressions.
+check:
+	go run ./cmd/goquality check

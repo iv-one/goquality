@@ -44,3 +44,8 @@ tasks:
     desc: Run goquality on itself (pass extra flags after --, e.g. task quality -- -v)
     cmds:
       - go run ./cmd/goquality --min-score 95 {{.CLI_ARGS}}
+
+  check:
+    desc: Compare with origin's default branch and fail on regressions (task check -- -v)
+    cmds:
+      - go run ./cmd/goquality check {{.CLI_ARGS}}
