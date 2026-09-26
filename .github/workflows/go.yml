@@ -35,3 +35,57 @@ jobs:
         uses: ./
         with:
           args: --verbose
+
+  # Publishes README badges and the report for main to the quality-history
+  # branch, using this repository's action as users would.
+  badges:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: quality-history
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+
+      - name: Render badges
+        uses: ./
+        with:
+          command: badges
+          args: -o ${{ runner.temp }}/badges
+
+      # The badges link here. The action installed goquality in GOPATH/bin.
+      - name: Render report
+        run: |
+          {
+            echo "goquality report for $GITHUB_REPOSITORY@$GITHUB_SHA ($(date -u +%Y-%m-%d))"
+            echo
+            "$(go env GOPATH)/bin/goquality" -v --agent=false
+          } > "$RUNNER_TEMP/report.txt"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: quality-history
+          path: quality-history
+
+      - name: Commit badges and report
+        working-directory: quality-history
+        run: |
+          mkdir -p badges
+          cp "$RUNNER_TEMP"/badges/*.svg badges/
+          cp "$RUNNER_TEMP/report.txt" .
+          git add badges report.txt
+          if git diff --cached --quiet; then
+            echo "unchanged"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Update badges and report for ${GITHUB_SHA::7}"
+          git push -q

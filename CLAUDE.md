@@ -27,7 +27,7 @@ go run ./cmd/goquality -v internal/testdata/sample
 
 ## Architecture
 
-The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text` or `report.JSON`. The `collect`, `compare` and `check` subcommands (`cmd/goquality/compare.go`) wrap the report in a snapshot and compare two of them.
+The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text` or `report.JSON`. The `collect`, `compare`, `check` and `badges` subcommands (`cmd/goquality/compare.go`, `badges.go`) wrap the report in a snapshot, compare two, or render it as badges.
 
 - **`internal/project`** loads packages once with `go/packages` (`LoadAllSyntax`, `Tests: true`).
   - `selectRoots` analyzes each package in its test variant (`p [p.test]`) instead of the plain package, plus xtest packages, and drops synthesized `.test` mains. Because of this, a diagnostic can appear twice, and the analysis pass dedupes them.
@@ -49,4 +49,5 @@ The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text`
   Anything an agent needs to act on (fix hints, suggested fixes, re-check commands) must show up in the agent format.
 - **`internal/compare`** compares snapshots (`Snapshot` = `check.Report` + commit, version and the settings that change findings). The policy has no configuration. A check fails on a new finding, or, when it has no findings on either side (coverage), on a lower score. Findings are matched by `key` (file, rule, message with digits masked), never by line, with `LineHash` (hash of the flagged line's content, set by `Fingerprint`) breaking ties between identical findings. Snapshots with different patterns or `--cyclo-over` are refused.
 - **`internal/git`** is the only place that runs git. Only `check` needs it; `collect` records the commit when git is available. The baseline is the merge base with the first existing `DefaultRefs`, exported with `git archive` into a temp dir (extracted through `os.Root`), so the user's repository is never modified.
+- **`internal/badge`** renders `score.svg` and `grade.svg` from a `check.Report` (`goquality badges`). It is presentation only: the score comes from the report and the color from its grade. The output must stay deterministic and self-contained. CI publishes the badges and the `-v` report (`report.txt`, which the badges link to) for main to the orphan `quality-history` branch.
 - **`internal/testdata/sample`** is a fixture module with one known issue per check. `TestRun` asserts exact findings (`file:line rule`), and `TestLoadStats` asserts exact stats, so changing the fixture means updating both. It is deliberately not gofmt-clean.

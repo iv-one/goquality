@@ -7,6 +7,7 @@
 //	goquality collect [flags] [dir | packages]
 //	goquality compare [flags] baseline.json current.json
 //	goquality check [--baseline ref|file.json] [flags] [dir | packages]
+//	goquality badges [-o dir] [--from snapshot.json] [flags] [dir | packages]
 package main
 
 import (
@@ -31,7 +32,7 @@ var usages = map[string]string{
 
 Usage:
   goquality [flags] [dir | packages]
-  goquality collect | compare | check ... (run "goquality <command> -h")
+  goquality collect | compare | check | badges ... (run "goquality <command> -h")
 
 With no arguments, goquality analyzes ./... in the current directory.
 A single directory argument analyzes that directory recursively; otherwise
@@ -41,6 +42,7 @@ Commands:
   collect   write a snapshot of the report, to compare later
   compare   compare two snapshots and fail on regressions
   check     compare the working tree with a baseline revision
+  badges    write score and grade SVG badges for a README
 
 Flags:
 `,
@@ -61,6 +63,16 @@ It fails when a check reports a finding that the baseline does not have,
 or when the score of a check without findings (such as coverage) falls.
 
 Exit codes: 0 no regressions, 1 regressions, 2 usage or load error.
+
+Flags:
+`,
+	"badges": `Badges writes score.svg ("Go Quality | 92/100") and grade.svg
+("Go Quality | A+") for a README. They show the report's score and grade,
+from an analysis run or from a snapshot written by "goquality collect".
+
+Usage:
+  goquality badges [-o dir] [flags] [dir | packages]
+  goquality badges [-o dir] --from snapshot.json
 
 Flags:
 `,
@@ -97,7 +109,8 @@ type options struct {
 	minScore   float64
 	cyclo      int
 	version    bool
-	output     string   // collect: file to write the snapshot to
+	output     string   // collect: file to write the snapshot to; badges: directory
+	from       string   // badges: snapshot to render instead of analyzing
 	baseline   string   // check: git ref or snapshot file
 	args       []string // positional arguments
 }
@@ -144,8 +157,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runCollect(ctx, o, checks, stdout, stderr, logf)
 	case "check":
 		return runCheck(ctx, o, checks, stdout, stderr, logf)
+	case "badges":
+		return runBadges(ctx, o, checks, stdout, stderr, logf)
 	}
+	return runReport(ctx, o, checks, stdout, stderr, logf)
+}
 
+// runReport prints the report and applies --min-score.
+func runReport(ctx context.Context, o options, checks []check.Check, stdout, stderr io.Writer, logf logFunc) int {
 	dir, patterns := target(o)
 	status := newStatus(stderr, !o.json && !o.agent)
 	status.set("loading packages")
@@ -181,7 +200,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 func command(args []string) (string, []string) {
 	if len(args) > 0 {
 		switch args[0] {
-		case "collect", "compare", "check":
+		case "collect", "compare", "check", "badges":
 			return args[0], args[1:]
 		}
 	}
@@ -204,7 +223,7 @@ func parseFlags(cmd string, args []string, stderr io.Writer) (options, error) {
 		fs.StringVar(&o.only, "only", "", "comma-separated `checks` to run, e.g. errcheck,govet (for quick re-checks)")
 		fs.IntVar(&o.cyclo, "cyclo-over", 15, "report functions with cyclomatic complexity above `n`")
 	}
-	if cmd != "collect" {
+	if cmd != "collect" && cmd != "badges" {
 		fs.BoolVar(&o.verbose, "verbose", false, "list individual findings")
 		fs.BoolVar(&o.verbose, "v", false, "shorthand for --verbose")
 		fs.BoolVar(&o.json, "json", false, "print the report as JSON")
@@ -218,6 +237,9 @@ func parseFlags(cmd string, args []string, stderr io.Writer) (options, error) {
 		fs.BoolVar(&o.version, "version", false, "print version and exit")
 	case "collect":
 		fs.StringVar(&o.output, "o", "", "write the snapshot to `file` instead of standard output")
+	case "badges":
+		fs.StringVar(&o.output, "o", "badges", "write the badges to `dir`")
+		fs.StringVar(&o.from, "from", "", "render the badges from a snapshot `file` instead of analyzing")
 	case "check":
 		fs.StringVar(&o.baseline, "baseline", "", "git `ref` or snapshot file to compare with (default: the merge base with origin's default branch)")
 	}

@@ -221,3 +221,35 @@ func TestRunCollectCompare(t *testing.T) {
 		}
 	}
 }
+
+func TestRunBadges(t *testing.T) {
+	dir := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"badges", "--only", "errcheck", "-o", dir, sample}, &stdout, &stderr); code != 0 {
+		t.Fatalf("badges: exit code %d, stderr: %s", code, stderr.String())
+	}
+	fromRun, err := os.ReadFile(filepath.Join(dir, "grade.svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(fromRun, []byte(`aria-label="Go Quality: `)) {
+		t.Errorf("grade.svg:\n%s", fromRun)
+	}
+
+	// The same result from a snapshot renders the same badge.
+	snap := filepath.Join(dir, "snap.json")
+	if code := run([]string{"collect", "--only", "errcheck", "-o", snap, sample}, &stdout, &stderr); code != 0 {
+		t.Fatalf("collect: exit code %d, stderr: %s", code, stderr.String())
+	}
+	out := filepath.Join(dir, "from")
+	if code := run([]string{"badges", "--from", snap, "-o", out}, &stdout, &stderr); code != 0 {
+		t.Fatalf("badges --from: exit code %d, stderr: %s", code, stderr.String())
+	}
+	fromSnap, err := os.ReadFile(filepath.Join(out, "grade.svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(fromRun, fromSnap) {
+		t.Errorf("badge from snapshot differs:\n%s\nvs\n%s", fromSnap, fromRun)
+	}
+}
