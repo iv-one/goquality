@@ -56,21 +56,7 @@ func ComparisonText(c compare.Comparison, opts TextOptions) string {
 		}
 	}
 	if opts.Verbose {
-		var fixed []compare.Delta
-		for _, d := range c.Checks {
-			if len(d.Fixed) > 0 {
-				fixed = append(fixed, d)
-			}
-		}
-		if len(fixed) > 0 {
-			p.section("Fixed")
-			for _, d := range fixed {
-				fmt.Fprintf(w, "  %s:\n", d.Label)
-				for _, f := range d.Fixed {
-					p.finding(f)
-				}
-			}
-		}
+		p.fixed(c)
 	}
 	for _, n := range c.Notes {
 		fmt.Fprintf(w, "\n%s\n", p.color("2", "Note: "+n))
@@ -84,6 +70,25 @@ func ComparisonText(c compare.Comparison, opts TextOptions) string {
 		fmt.Fprintf(w, "%s: %s regressed against %s\n", p.color("1;31", "FAILED"), plural(n, "check"), c.Baseline.Label)
 	}
 	return w.String()
+}
+
+// fixed lists the findings that the baseline has and the current side does
+// not.
+func (p printer) fixed(c compare.Comparison) {
+	title := false
+	for _, d := range c.Checks {
+		if len(d.Fixed) == 0 {
+			continue
+		}
+		if !title {
+			p.section("Fixed")
+			title = true
+		}
+		fmt.Fprintf(p.w, "  %s:\n", d.Label)
+		for _, f := range d.Fixed {
+			p.finding(f)
+		}
+	}
 }
 
 // ComparisonAgent renders a comparison compactly for coding agents: a
