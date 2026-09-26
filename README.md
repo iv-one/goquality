@@ -70,7 +70,7 @@ Overall
 
 All analyzers are compiled into the binary. The only runtime dependency is
 the `go` command; nothing else needs to be installed. Build goquality with a
-Go toolchain at least as new as the projects you analyze (Go 1.26+). Its type
+Go toolchain at least as new as the projects you analyze (Go 1.27+). Its type
 checker cannot parse language features newer than itself.
 
 ## Usage
