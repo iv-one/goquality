@@ -1,4 +1,4 @@
-name: goquality
+name: goquality check
 description: Fail when a change makes a Go project worse (new findings or lower coverage).
 author: iv-one
 branding:
