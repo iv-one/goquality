@@ -1,4 +1,4 @@
-goquality report for iv-one/goquality (seeded locally; replaced by CI on the next push to main)
+goquality report for iv-one/goquality@5535300f044aae2faa93f44dce797c9cd631be86 (2026-09-26)
 
 Go Quality  github.com/iv-one/goquality
 
@@ -53,7 +53,7 @@ Security
 Overall
   issues ............................... 0
   suppressed ........................... 8
-  time ............................. 16.1s
+  time .............................. 5.1s
 
 Next steps
   Coverage was not measured; run with --cover to include it.
