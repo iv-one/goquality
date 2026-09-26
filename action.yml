@@ -1,0 +1,47 @@
+name: goquality
+description: Fail when a change makes a Go project worse (new findings or lower coverage).
+author: iv-one
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  command:
+    description: goquality command to run, "check" or "" for the plain report
+    default: check
+  args:
+    description: Extra arguments, e.g. "--cover" or "--baseline origin/release"
+    default: ""
+  working-directory:
+    description: Directory to run goquality in
+    default: .
+
+runs:
+  using: composite
+  steps:
+    # Build from the action's own checkout, so @v1 of the action runs v1 of
+    # the tool, compiled with the project's Go toolchain (set up by
+    # actions/setup-go before this step).
+    - name: Install goquality
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        GOWORK: "off"
+        GOFLAGS: ""
+      run: go install ./cmd/goquality
+
+    - name: Run goquality
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COMMAND: ${{ inputs.command }}
+        ARGS: ${{ inputs.args }}
+      run: |
+        if [ "$COMMAND" = check ] && [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+          echo "::error::goquality check needs the baseline commit: use actions/checkout with fetch-depth: 0"
+          exit 2
+        fi
+        bin=$(go env GOBIN)
+        # ARGS is split into words on purpose.
+        # shellcheck disable=SC2086
+        "${bin:-$(go env GOPATH)/bin}/goquality" $COMMAND $ARGS

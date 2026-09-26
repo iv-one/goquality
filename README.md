@@ -213,7 +213,8 @@ goquality compare base.json current.json
 goquality check --baseline base.json
 ```
 
-In GitHub Actions, check out full history so the baseline exists:
+In GitHub Actions, use the action from this repository. Check out full
+history so the baseline exists:
 
 ```yaml
 - uses: actions/checkout@v4
@@ -222,12 +223,21 @@ In GitHub Actions, check out full history so the baseline exists:
 - uses: actions/setup-go@v5
   with:
     go-version-file: go.mod
-- run: go install github.com/iv-one/goquality/cmd/goquality@latest
-- run: goquality check
+- uses: iv-one/goquality@v1
+  with:
+    args: --cover            # optional
 ```
 
-For pull requests into a branch other than the default, pass
-`--baseline origin/${{ github.base_ref }}`.
+The action builds goquality from its own source with the project's Go
+toolchain, so the tool always understands the project's Go version, and then
+runs `goquality check`. Set `command: ""` for the plain report (for example
+with `args: --min-score 90`), and `working-directory` for a module in a
+subdirectory. Without the action, the same steps are
+`go install github.com/iv-one/goquality/cmd/goquality@latest` and
+`goquality check`.
+
+For pull requests into a branch other than the default, set
+`args: --baseline origin/${{ github.base_ref }}`.
 
 ## Checks
 
