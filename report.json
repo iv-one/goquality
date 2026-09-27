@@ -1,0 +1,265 @@
+{
+  "schema": 1,
+  "goquality_version": "v0.0.0-20260927121013-e05db351e57a",
+  "commit": "e05db351e57ad0a8a058b63109dc66fa38530274",
+  "timestamp": "2026-09-27T12:13:21Z",
+  "settings": {
+    "patterns": [
+      "./..."
+    ],
+    "checks": [
+      "build",
+      "govet",
+      "staticcheck",
+      "errcheck",
+      "ineffassign",
+      "gofmt",
+      "complexity",
+      "misspell",
+      "nolint",
+      "license",
+      "tests",
+      "coverage",
+      "govulncheck",
+      "gosec"
+    ],
+    "cyclo_over": 15
+  },
+  "report": {
+    "goquality_version": "v0.0.0-20260927121013-e05db351e57a",
+    "project": {
+      "module": "github.com/iv-one/goquality",
+      "go_version": "1.27.1",
+      "packages": 7,
+      "tested_packages": 7,
+      "go_files": 32,
+      "test_files": 10,
+      "generated_files": 0,
+      "lines": 5389,
+      "code_lines": 3505,
+      "test_code_lines": 1116,
+      "functions": 178,
+      "tests": 41,
+      "benchmarks": 0,
+      "fuzz_tests": 0,
+      "examples": 0,
+      "direct_dependencies": 9,
+      "indirect_dependencies": 6,
+      "build_dependencies": 14
+    },
+    "grade": "A+",
+    "score": 100,
+    "issues": 0,
+    "suppressed": 8,
+    "checks": [
+      {
+        "name": "build",
+        "label": "build",
+        "category": "correctness",
+        "status": "pass",
+        "summary": "PASS",
+        "weight": 0.1,
+        "score": 1,
+        "duration_seconds": 0.000003136
+      },
+      {
+        "name": "govet",
+        "label": "go vet",
+        "category": "correctness",
+        "status": "pass",
+        "summary": "PASS",
+        "weight": 0.2,
+        "score": 1,
+        "duration_seconds": 4.017066752
+      },
+      {
+        "name": "staticcheck",
+        "label": "staticcheck",
+        "category": "correctness",
+        "status": "pass",
+        "summary": "PASS",
+        "weight": 0.15,
+        "score": 1,
+        "duration_seconds": 4.004766339
+      },
+      {
+        "name": "errcheck",
+        "label": "errcheck",
+        "category": "correctness",
+        "status": "pass",
+        "summary": "PASS",
+        "weight": 0.1,
+        "score": 1,
+        "duration_seconds": 4.004381809
+      },
+      {
+        "name": "ineffassign",
+        "label": "ineffassign",
+        "category": "correctness",
+        "status": "pass",
+        "summary": "PASS",
+        "weight": 0.05,
+        "score": 1,
+        "duration_seconds": 4.017079694
+      },
+      {
+        "name": "gofmt",
+        "label": "gofmt",
+        "category": "maintainability",
+        "status": "pass",
+        "summary": "100%",
+        "weight": 0.15,
+        "score": 1,
+        "duration_seconds": 0.092048113
+      },
+      {
+        "name": "complexity",
+        "label": "complexity",
+        "category": "maintainability",
+        "status": "pass",
+        "summary": "100%",
+        "weight": 0.1,
+        "score": 1,
+        "metrics": [
+          {
+            "key": "average",
+            "label": "average complexity",
+            "value": 4.5
+          },
+          {
+            "key": "max",
+            "label": "max complexity",
+            "value": 15
+          },
+          {
+            "key": "max_function",
+            "label": "most complex",
+            "value": "project.(*Project).computeStats"
+          },
+          {
+            "key": "over_threshold",
+            "label": "functions \u003e 15",
+            "value": 0
+          }
+        ],
+        "duration_seconds": 0.000974764
+      },
+      {
+        "name": "misspell",
+        "label": "misspell",
+        "category": "maintainability",
+        "status": "pass",
+        "summary": "PASS",
+        "weight": 0.02,
+        "score": 1,
+        "duration_seconds": 0.270050777
+      },
+      {
+        "name": "nolint",
+        "label": "nolint",
+        "category": "maintainability",
+        "status": "info",
+        "summary": "PASS",
+        "weight": 0,
+        "duration_seconds": 0.00057675
+      },
+      {
+        "name": "license",
+        "label": "license",
+        "category": "maintainability",
+        "status": "pass",
+        "summary": "LICENSE",
+        "weight": 0.03,
+        "score": 1,
+        "duration_seconds": 0.000032821
+      },
+      {
+        "name": "tests",
+        "label": "tests",
+        "category": "tests",
+        "status": "pass",
+        "summary": "41",
+        "weight": 0.05,
+        "score": 1,
+        "metrics": [
+          {
+            "key": "packages_tested",
+            "label": "packages tested",
+            "value": "7/7"
+          },
+          {
+            "key": "test_files",
+            "label": "test files",
+            "value": 10
+          }
+        ],
+        "duration_seconds": 0.006736751
+      },
+      {
+        "name": "coverage",
+        "label": "coverage",
+        "category": "tests",
+        "status": "skipped",
+        "summary": "skipped (--cover)",
+        "weight": 0.1,
+        "duration_seconds": 0.000009593
+      },
+      {
+        "name": "govulncheck",
+        "label": "vulnerabilities",
+        "category": "security",
+        "status": "pass",
+        "summary": "0",
+        "weight": 0.1,
+        "score": 1,
+        "metrics": [
+          {
+            "key": "affected_modules",
+            "label": "affected modules",
+            "value": 0
+          },
+          {
+            "key": "imported_not_called",
+            "label": "imported, not called",
+            "value": 0
+          },
+          {
+            "key": "required_not_imported",
+            "label": "required, not imported",
+            "value": 0
+          }
+        ],
+        "duration_seconds": 5.012293109
+      },
+      {
+        "name": "gosec",
+        "label": "security findings",
+        "category": "security",
+        "status": "pass",
+        "summary": "0",
+        "weight": 0.1,
+        "score": 1,
+        "metrics": [
+          {
+            "key": "high",
+            "label": "high",
+            "value": 0
+          },
+          {
+            "key": "medium",
+            "label": "medium",
+            "value": 0
+          },
+          {
+            "key": "low",
+            "label": "low",
+            "value": 0
+          }
+        ],
+        "suppressed": 8,
+        "duration_seconds": 0.512453112
+      }
+    ],
+    "duration_seconds": 5.024222105
+  }
+}
