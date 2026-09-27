@@ -209,6 +209,11 @@ The policy needs no configuration:
   in the number of suppressed findings is shown, so a regression hidden
   behind `//nolint` is visible.
 
+When there is nothing to compare with, `check` passes and says why: in the
+change that adds the module (or its directory), or in a repository without
+any of those branches. A shallow clone is different: its baseline may exist
+but not be fetched, so `check` fails and asks for full history.
+
 `--json` and `--agent` work as for the report. Exit codes: `0` no
 regressions, `1` regressions, `2` usage or load error.
 
@@ -239,7 +244,8 @@ history so the baseline exists:
 The action builds goquality from its own source with the project's Go
 toolchain, so the tool always understands the project's Go version, and then
 runs `goquality check`. Set `command: ""` for the plain report (for example
-with `args: --min-score 90`), and `working-directory` for a module in a
+with `args: --min-score 90`), `command: publish` for
+[README badges](#readme-badges), and `working-directory` for a module in a
 subdirectory. Without the action, the same steps are
 `go install github.com/iv-one/goquality/cmd/goquality@latest` and
 `goquality check`.
@@ -260,58 +266,39 @@ goquality badges -o /tmp/b --cover       # include coverage in the score
 goquality badges --from snapshot.json    # render a snapshot from goquality collect
 ```
 
-No badge service is needed. CI renders the badges for the default branch and
-commits them to a `quality-history` branch, and GitHub serves them from
-there. Create the branch once:
-
-```bash
-git switch --orphan quality-history && git commit --allow-empty -m "Start quality history"
-git push origin quality-history && git switch -
-```
-
-Then add a job that runs on pushes to main. It analyzes once, with
-`goquality collect`, and renders the badges and the text report from that
-snapshot, so all three agree. The action installs goquality, so later steps
-can run it too:
+No badge service is needed. The action publishes the badges, the full report
+(`goquality -v`) as `report.txt`, which the badges link to, and the snapshot
+as `report.json` for tools, to a `quality-history` branch, and GitHub serves
+them from there. It is one step, with no setup:
 
 ```yaml
-badges:
-  if: github.ref == 'refs/heads/main'
-  runs-on: ubuntu-latest
-  permissions:
-    contents: write
-  concurrency: quality-history
-  steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-    - uses: iv-one/goquality@v0
-      with:
-        command: collect
-        args: -o ${{ runner.temp }}/report.json
-    - run: |
-        goquality="$(go env GOPATH)/bin/goquality"
-        "$goquality" badges --from "$RUNNER_TEMP/report.json" -o "$RUNNER_TEMP/badges"
-        "$goquality" --from "$RUNNER_TEMP/report.json" -v --agent=false > "$RUNNER_TEMP/report.txt"
-    - uses: actions/checkout@v4
-      with:
-        ref: quality-history
-        path: quality-history
-    - working-directory: quality-history
-      run: |
-        mkdir -p badges && cp "$RUNNER_TEMP"/badges/*.svg badges/
-        cp "$RUNNER_TEMP/report.txt" "$RUNNER_TEMP/report.json" .
-        git add badges report.txt report.json
-        git diff --cached --quiet && exit 0
-        git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-          commit -m "Update badges and report for ${GITHUB_SHA::7}"
-        git push
+# .github/workflows/quality.yml
+on: push
+permissions:
+  contents: write
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: iv-one/goquality@v0
+        with:
+          command: publish
 ```
 
-The job also saves the full report (`goquality -v`) as `report.txt`, so the
-badges can link to the details behind the score, and the snapshot as
-`report.json` for tools. Reference the badges from the README, replacing
+`command: publish` analyzes once and renders all three outputs from that
+result, so they always agree. It only publishes on pushes to the default
+branch and skips elsewhere, so it can share a workflow that runs on pull
+requests. The first run creates the branch; files you add to it are kept.
+Publishing never fails the build: if the push is refused (no
+`contents: write`, a protected branch or a concurrent run), the step leaves a
+warning and the next push to the default branch publishes again. `args` are
+passed to `goquality collect`, for example `args: --cover`.
+
+Reference the badges from the README, replacing
 `OWNER/REPO`:
 
 ```markdown

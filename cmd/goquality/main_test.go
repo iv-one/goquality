@@ -297,3 +297,65 @@ func TestRunFrom(t *testing.T) {
 		}
 	}
 }
+
+// TestRunCheckNoBaseline covers changes with nothing to compare with, which
+// pass, and a shallow clone, where the baseline may just not be fetched.
+func TestRunCheckNoBaseline(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	git := func(dir string, args ...string) {
+		t.Helper()
+		args = append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"}, args...)
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	// repo returns a repository whose main has only a README, with the
+	// sample module added to the work tree in sub.
+	repo := func(sub string, commit bool) string {
+		dir := t.TempDir()
+		git(dir, "init", "-q", "-b", "main")
+		if commit {
+			if err := os.WriteFile(filepath.Join(dir, "README"), []byte("hi\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			git(dir, "add", ".")
+			git(dir, "commit", "-q", "-m", "readme")
+		}
+		if err := os.CopyFS(filepath.Join(dir, sub), os.DirFS(sample)); err != nil {
+			t.Fatal(err)
+		}
+		return filepath.Join(dir, sub)
+	}
+
+	for _, tt := range []struct{ name, dir, want string }{
+		{"module added", repo(".", true), "(no Go module at main@"},
+		{"directory added", repo("mod", true), "(mod does not exist at main@"},
+		{"no commits", repo(".", false), "(none of origin/HEAD"},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{"check", "--agent", "--only", "errcheck", tt.dir}, &stdout, &stderr); code != 0 {
+			t.Errorf("%s: exit code %d, want 0\nstdout: %s\nstderr: %s", tt.name, code, stdout.String(), stderr.String())
+		}
+		if out := stdout.String(); !strings.HasPrefix(out, "goquality check: PASS, nothing to compare with ") || !strings.Contains(out, tt.want) {
+			t.Errorf("%s:\n%s", tt.name, out)
+		}
+	}
+
+	// A shallow clone without the default branch may have it upstream.
+	src := sampleRepo(t)
+	shallow := t.TempDir()
+	if out, err := exec.Command("git", "clone", "-q", "--depth", "1", "file://"+src, shallow).CombinedOutput(); err != nil {
+		t.Fatalf("clone: %v\n%s", err, out)
+	}
+	git(shallow, "branch", "-q", "-m", "feature")
+	git(shallow, "remote", "remove", "origin")
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"check", "--only", "errcheck", shallow}, &stdout, &stderr); code != 2 {
+		t.Errorf("shallow clone: exit code %d, want 2\nstdout: %s\nstderr: %s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "shallow clone") {
+		t.Errorf("shallow clone stderr: %s", stderr.String())
+	}
+}

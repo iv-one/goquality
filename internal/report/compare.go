@@ -30,6 +30,14 @@ func ComparisonText(c compare.Comparison, opts TextOptions) string {
 	}
 	fmt.Fprintln(w, title)
 	fmt.Fprintln(w)
+	if c.NoBaseline != "" {
+		p.line(0, "Baseline", "none", "")
+		p.line(0, "Current", describe(c.Current), "")
+		p.line(0, "Score", fmt.Sprintf("%.1f%%", c.Current.Score), "")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, p.color("1;32", "PASSED")+": nothing to compare with; "+c.NoBaseline)
+		return w.String()
+	}
 	p.line(0, "Baseline", describe(c.Baseline), "")
 	p.line(0, "Current", describe(c.Current), "")
 	p.line(0, "Score", fmt.Sprintf("%.1f%% → %.1f%%", c.Baseline.Score, c.Current.Score), "")
@@ -95,6 +103,14 @@ func (p printer) fixed(c compare.Comparison) {
 // verdict, then each regression with its new findings and a fix hint.
 func ComparisonAgent(c compare.Comparison, opts AgentOptions) string {
 	w := new(strings.Builder)
+	if c.NoBaseline != "" {
+		fmt.Fprintf(w, "goquality check: PASS, nothing to compare with (%s) | score %.1f%%", c.NoBaseline, c.Current.Score)
+		if c.Module != "" {
+			fmt.Fprintf(w, " | %s", c.Module)
+		}
+		w.WriteString("\n")
+		return w.String()
+	}
 	verdict := "PASS, no regressions"
 	if !c.Passed {
 		verdict = fmt.Sprintf("FAIL, %s regressed", plural(len(c.Regressions()), "check"))

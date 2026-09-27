@@ -55,6 +55,10 @@ type Project struct {
 	stats     Stats
 }
 
+// ErrNoModule is returned by Load when the directory is not in a Go module
+// or workspace.
+var ErrNoModule = errors.New("no go.mod found")
+
 // Load loads the packages matching patterns (default "./...") from dir.
 func Load(ctx context.Context, dir string, patterns []string) (*Project, error) {
 	root, err := filepath.Abs(dir)
@@ -65,7 +69,7 @@ func Load(ctx context.Context, dir string, patterns []string) (*Project, error) 
 		patterns = []string{"./..."}
 	}
 	if !inModule(root) {
-		return nil, fmt.Errorf("no go.mod found in %s or any parent directory", root)
+		return nil, fmt.Errorf("%w in %s or any parent directory", ErrNoModule, root)
 	}
 
 	fset := token.NewFileSet()
