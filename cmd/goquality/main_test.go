@@ -295,7 +295,9 @@ func TestRunFrom(t *testing.T) {
 			return json.Unmarshal([]byte(out), &got) == nil && json.Unmarshal(s.Report, &want) == nil &&
 				fmt.Sprint(got) == fmt.Sprint(want)
 		}},
-		{"agent", []string{"--agent"}, func(out string) bool { return strings.HasPrefix(out, "goquality") && strings.Contains(out, "): grade ") }},
+		{"agent", []string{"--agent"}, func(out string) bool {
+			return strings.HasPrefix(out, "goquality") && strings.Contains(out, "): grade ")
+		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			stdout.Reset()
