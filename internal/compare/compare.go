@@ -53,6 +53,20 @@ type Comparison struct {
 	Passed   bool     `json:"passed"`
 	Checks   []Delta  `json:"checks"`
 	Notes    []string `json:"notes,omitempty"`
+	// NoBaseline says why there was nothing to compare with, such as a
+	// change that adds the module. Such a comparison passes.
+	NoBaseline string `json:"no_baseline,omitempty"`
+}
+
+// Unbaselined is the passing comparison of cur when there is nothing to
+// compare it with, for the given reason.
+func Unbaselined(cur Snapshot, curLabel, reason string) Comparison {
+	return Comparison{
+		Module:     cur.Report.Stats.Module,
+		Current:    side(cur, curLabel),
+		Passed:     true,
+		NoBaseline: reason,
+	}
 }
 
 // Regressions returns the checks that failed.

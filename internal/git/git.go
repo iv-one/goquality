@@ -49,6 +49,13 @@ func (r *Repo) MergeBase(ctx context.Context, ref string) (string, error) {
 	return run(ctx, r.Root, "merge-base", "--end-of-options", "HEAD", ref)
 }
 
+// Shallow reports whether the repository is a shallow clone, whose refs
+// and history may be incomplete.
+func (r *Repo) Shallow(ctx context.Context) bool {
+	out, err := run(ctx, r.Root, "rev-parse", "--is-shallow-repository")
+	return err == nil && out == "true"
+}
+
 // DefaultRef returns the first of DefaultRefs that exists.
 func (r *Repo) DefaultRef(ctx context.Context) (string, error) {
 	for _, ref := range DefaultRefs {

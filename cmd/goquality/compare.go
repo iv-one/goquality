@@ -93,7 +93,8 @@ func runCheck(ctx context.Context, o options, checks []check.Check, stdout, stde
 	} else {
 		label, base, err = collectBaseline(ctx, repo, o.baseline, dir, patterns, checks, o, status)
 	}
-	if err != nil {
+	var none *noBaselineError
+	if err != nil && !errors.As(err, &none) {
 		status.clear()
 		logf("%v", err)
 		return 2
@@ -110,6 +111,9 @@ func runCheck(ctx context.Context, o options, checks []check.Check, stdout, stde
 	}
 	status.clear()
 
+	if none != nil {
+		return finish(stdout, compare.Unbaselined(cur, "working tree", none.reason), o, logf)
+	}
 	c, err := compare.Compare(base, cur, label, "working tree")
 	if err != nil {
 		logf("%v", err)
@@ -118,22 +122,42 @@ func runCheck(ctx context.Context, o options, checks []check.Check, stdout, stde
 	return finish(stdout, c, o, logf)
 }
 
+// baselineCommit resolves ref, by default the remote's default branch, and
+// returns it with its merge base with HEAD.
+func baselineCommit(ctx context.Context, repo *git.Repo, ref string) (string, string, error) {
+	var err error
+	if ref == "" {
+		if ref, err = repo.DefaultRef(ctx); err != nil {
+			// A shallow clone may just not have fetched the default branch.
+			if repo.Shallow(ctx) {
+				return "", "", fmt.Errorf("%w (in a shallow clone, fetch full history)", err)
+			}
+			return "", "", &noBaselineError{err.Error()}
+		}
+	}
+	if _, err := repo.Commit(ctx, ref); err != nil {
+		return "", "", fmt.Errorf("baseline %q: %w", ref, err)
+	}
+	commit, err := repo.MergeBase(ctx, ref)
+	if err != nil {
+		return "", "", fmt.Errorf("no merge base with %s (in a shallow clone, fetch full history): %w", ref, err)
+	}
+	return ref, commit, nil
+}
+
+// noBaselineError means there is nothing to compare with, such as in a
+// change that adds the module, so check passes rather than failing.
+type noBaselineError struct{ reason string }
+
+func (e *noBaselineError) Error() string { return "no baseline: " + e.reason }
+
 // collectBaseline exports the merge base of HEAD and ref (by default the
 // remote's default branch) to a temporary directory and analyzes it with
 // the same settings as the working tree.
 func collectBaseline(ctx context.Context, repo *git.Repo, ref, dir string, patterns []string, checks []check.Check, o options, status *status) (string, compare.Snapshot, error) {
-	var err error
-	if ref == "" {
-		if ref, err = repo.DefaultRef(ctx); err != nil {
-			return "", compare.Snapshot{}, err
-		}
-	}
-	if _, err := repo.Commit(ctx, ref); err != nil {
-		return "", compare.Snapshot{}, fmt.Errorf("baseline %q: %w", ref, err)
-	}
-	commit, err := repo.MergeBase(ctx, ref)
+	ref, commit, err := baselineCommit(ctx, repo, ref)
 	if err != nil {
-		return "", compare.Snapshot{}, fmt.Errorf("no merge base with %s (in a shallow clone, fetch full history): %w", ref, err)
+		return "", compare.Snapshot{}, err
 	}
 
 	// The project may be a subdirectory of the repository.
@@ -165,9 +189,12 @@ func collectBaseline(ctx context.Context, repo *git.Repo, ref, dir string, patte
 	}
 	baseDir := filepath.Join(tmp, rel)
 	if _, err := os.Stat(baseDir); err != nil {
-		return "", compare.Snapshot{}, fmt.Errorf("%s does not exist at %s@%.7s", rel, ref, commit)
+		return "", compare.Snapshot{}, &noBaselineError{fmt.Sprintf("%s does not exist at %s@%.7s", rel, ref, commit)}
 	}
 	snap, err := collect(ctx, baseDir, patterns, checks, o, status)
+	if errors.Is(err, project.ErrNoModule) {
+		return "", compare.Snapshot{}, &noBaselineError{fmt.Sprintf("no Go module at %s@%.7s", ref, commit)}
+	}
 	if err != nil {
 		return "", compare.Snapshot{}, fmt.Errorf("baseline %s@%.7s: %w", ref, commit, err)
 	}
