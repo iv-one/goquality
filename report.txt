@@ -1,4 +1,4 @@
-goquality report for iv-one/goquality@e44acab166e1b55ae14ed70452853d4e2d056e0c (2026-09-27)
+goquality report for iv-one/goquality@553a096d20a4d14e352ba3a1802d34e40d66e695 (2026-09-27)
 
 Go Quality  github.com/iv-one/goquality
 
@@ -54,4 +54,4 @@ Overall
   issues ............................... 0
   suppressed ........................... 8
   time .............................. 4.6s
-  goquality version .. v0.0.0-20260927112545-e44acab166e1
+  goquality version .. v0.0.0-20260927114355-553a096d20a4
