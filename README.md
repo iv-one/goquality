@@ -81,6 +81,7 @@ goquality                  # analyze ./... in the current directory
 goquality path/to/project  # analyze another directory, recursively
 goquality ./cmd/... ./pkg/...
 goquality --verbose        # list every finding with file:line
+goquality --next           # end with next steps: what to fix first
 goquality --json           # machine-readable report
 goquality --agent          # compact report for coding agents
 goquality --cover          # also run tests and measure coverage
@@ -91,9 +92,9 @@ goquality --min-score 90   # exit 1 if the score is below 90%
 goquality --from quality.json -v  # print a snapshot from goquality collect
 ```
 
-Every report ends with **next steps**: the checks ranked by how many score
-points fixing them would add, with a hint for each and how many to fix for the
-next grade:
+With `--next`, the report ends with **next steps**: the checks ranked by how
+many score points fixing them would add, with a hint for each and how many to
+fix for the next grade:
 
 ```text
 Next steps (A needs > 80%: fix 1-2)
@@ -103,7 +104,8 @@ Next steps (A needs > 80%: fix 1-2)
              Apply the suggested fixes; each rule is documented at https://staticcheck.dev/docs/checks/.
 ```
 
-The same data is in the JSON report as `next_steps`.
+The same data is always in the JSON report as `next_steps`, and in the agent
+format.
 
 Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
 
@@ -121,7 +123,8 @@ with `--from`: set them when collecting the snapshot.
 goquality is built to be run in a loop by an agent: *"run `goquality --cover`
 and get it to A+"*. With `--agent`, the report is compact plain text:
 
-- a one-line verdict
+- a one-line verdict, with the goquality version, and a line saying so when
+  blockers cap the score
 - which checks fail
 - next steps ranked by score gain, with a fix hint each
 - findings grouped by file, with suggested fixes, capped by `--max-findings`
@@ -130,11 +133,12 @@ and get it to A+"*. With `--agent`, the report is compact plain text:
   and how to re-check
 
 ```text
-goquality: grade B (70.3%), 13 issues, 2 suppressed | example.com/sample: 3 packages, 38 lines of code, 1 test
+goquality v0.2.1: grade B (70.3%), 13 issues, 2 suppressed | example.com/sample: 3 packages, 38 lines of code, 1 test
 
 checks:
-  fail: govet, staticcheck, errcheck, ineffassign, gofmt, misspell, nolint, license, tests, gosec
+  fail: govet, staticcheck, errcheck, ineffassign, gofmt, misspell, license, tests, gosec
   skip: coverage (--cover)
+  info: nolint
   pass: build, complexity, govulncheck
 
 next steps, by score gain (A needs > 80%: fix 1-2):
@@ -352,7 +356,7 @@ moment to show up.
 | Maintainability | `gofmt` | files that are not gofmt-formatted | 0.15 |
 | | `complexity` | functions with cyclomatic complexity above 15 (gocyclo) | 0.10 |
 | | `misspell` | common English misspellings | 0.02 |
-| | `nolint` | `//nolint` directives without linter names or a reason | 0.05 |
+| | `nolint` | `//nolint` directives without linter names or a reason (informational) | — |
 | | `license` | a license file at the module root | 0.03 |
 | Tests | `tests` | share of packages with tests; test counts | 0.05 |
 | | `coverage` | statement coverage and test results (`--cover` only) | 0.10 |
@@ -363,16 +367,67 @@ The score is the weighted average of the checks that ran. For linters, a
 check's score is the share of files with no findings, as in Go Report Card.
 The grade uses Go Report Card's thresholds (A+ above 90%, A above 80%, ...).
 
-The different kinds of security findings are scored differently:
-
-- **govulncheck:** only vulnerabilities in code the project actually calls
-  lower the score. Vulnerable packages that are imported but not called, and
-  vulnerable modules that are only required, are reported but not scored.
-- **gosec:** only HIGH and MEDIUM findings affect the score. G104 (unhandled
-  errors) is excluded because it duplicates errcheck.
-
 Generated files (with a `// Code generated ... DO NOT EDIT.` header) are
 counted in the project statistics but excluded from all checks.
+
+### How security affects the score
+
+Security affects the score in two ways: as two weighted checks, like every
+other check, and through **blockers**, which cap the whole score.
+
+**Weighted checks.** `govulncheck` and `gosec` each weigh 0.10. Without
+`--cover` all weights add up to 1.15, so each security check accounts for
+about 8.7 points of the score (8.0 with `--cover`):
+
+- **govulncheck:** each vulnerability in code the project actually calls
+  takes 25% off the check, so four or more bring it to 0. Vulnerable packages
+  that are imported but not called, and vulnerable modules that are only
+  required, are reported as metrics but not scored.
+- **gosec:** the check's score is the share of non-test files with no HIGH or
+  MEDIUM finding. LOW findings are listed but not scored. G104 (unhandled
+  errors) is excluded because it duplicates errcheck.
+
+**Blockers.** A weighted average spreads one serious problem across the whole
+project: a single `InsecureSkipVerify: true` in a 100-file project would cost
+less than a tenth of a point. So some findings are blockers. While any
+remains, the score is capped at **80%, so the grade is B at best**, however
+clean the rest of the project is. Blockers are:
+
+- vulnerabilities in code the project calls (govulncheck), and
+- gosec findings with HIGH severity *and* HIGH confidence. In gosec v2.29
+  these come from G108 (pprof endpoint exposed), G402 (`InsecureSkipVerify`,
+  TLS versions or cipher suites that are too weak), G123 (TLS resumption
+  bypassing `VerifyPeerCertificate`), G407 (hardcoded nonce or IV), G408
+  (`ssh.PublicKeyCallback` misuse), and some findings of G119 (redirects
+  forwarding sensitive headers) and G121 (CORS protection bypass).
+
+Both the severity and the confidence are gosec's own. The confidence
+requirement leaves out noisy rules such as G115 (integer overflow, HIGH
+severity, MEDIUM confidence) and G101 (hardcoded credentials, LOW
+confidence).
+
+Because the cap applies to the score itself, the grade, the badges,
+`--min-score` and the JSON report all agree. The report says when the score
+is capped and what it would be without the cap. `-v` marks blocker findings,
+and next steps (`--next`, and always in the agent format) list checks with
+blockers first, with the gain of lifting the cap:
+
+```text
+Grade .................................. B
+Score .............................. 80.0%
+  capped at 80% by 1 blocker (97.3% without it)
+...
+      tls.go:7:48 [HIGH, blocker] TLS InsecureSkipVerify set to true. (confidence: HIGH) (G402)
+```
+
+In JSON, blocker findings have `"blocker": true`, and the report has
+`blockers` and, when the cap lowered the score, `uncapped_score`.
+
+A blocker can be suppressed like any finding, for example
+`//nolint:gosec // pprof is only served on localhost`. Suppressions are
+counted in the report (see [Suppressing findings](#suppressing-findings)).
+With `--no-security` or `--skip gosec,govulncheck`, security checks do not
+run, so they neither count toward the score nor cap it.
 
 ## Suppressing findings
 
@@ -389,10 +444,12 @@ goquality honors the directives other Go tools already use:
 A directive applies to its own line. When the comment is alone on its line, it
 also applies to the next line.
 
-Suppressions are never free. The report counts suppressed findings, and the
-`nolint` check flags any `//nolint` that doesn't name its linters or give a
-reason (`//nolint:errcheck // cleanup is best-effort`). This keeps a
-"make it A+" loop from being won by silencing linters.
+Suppressing a finding is your call, and it never lowers the score or fails
+`goquality check`. A suppressed finding doesn't count against its check. To
+keep suppressions visible, the report shows how many findings each check
+suppressed, and the informational `nolint` check lists any `//nolint` that
+doesn't name its linters or give a reason
+(`//nolint:errcheck // cleanup is best-effort`).
 
 ## Development
 

@@ -186,6 +186,7 @@ func collect(ctx context.Context, dir string, patterns []string, checks []check.
 	status.set("analyzing " + displayName(p))
 	opts := runOptions(o)
 	rep := check.Run(ctx, p, checks, opts)
+	rep.Version = version()
 	if ctx.Err() != nil {
 		return compare.Snapshot{}, errors.New("interrupted")
 	}

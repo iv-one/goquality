@@ -25,6 +25,20 @@ func finding(file string, line int, msg string) check.Finding {
 	return check.Finding{File: file, Line: line, Message: msg}
 }
 
+func TestCompareInformational(t *testing.T) {
+	base := snapshot(check.Result{Name: "nolint", Status: check.Info})
+	cur := snapshot(check.Result{Name: "nolint", Status: check.Info, Findings: []check.Finding{
+		finding("a.go", 3, "//nolint must name the linters and give a reason"),
+	}})
+	c, err := Compare(base, cur, "base", "cur")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Passed || len(c.Checks[0].New) != 1 {
+		t.Errorf("Passed = %v, new = %d; want true, 1", c.Passed, len(c.Checks[0].New))
+	}
+}
+
 func TestCompare(t *testing.T) {
 	base := snapshot(
 		check.Result{Name: "errcheck", Status: check.Warn, Score: score(0.5), Findings: []check.Finding{

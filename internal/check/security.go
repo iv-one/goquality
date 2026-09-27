@@ -26,9 +26,10 @@ import (
 // Govulncheck reports known vulnerabilities from the Go vulnerability
 // database, using govulncheck's reachability analysis.
 //
-// Only vulnerabilities in code the project actually calls affect the score;
-// vulnerable packages that are imported but not called, and vulnerable
-// modules that are merely required, are reported as metrics.
+// Only vulnerabilities in code the project actually calls affect the score,
+// and they are blockers (see BlockerCap); vulnerable packages that are
+// imported but not called, and vulnerable modules that are merely required,
+// are reported as metrics.
 func Govulncheck() Check {
 	return checkFunc{name: "govulncheck", category: Security, weight: 0.10, run: runGovulncheck}
 }
@@ -176,6 +177,7 @@ func vulnResult(vulns map[string]*vuln) Result {
 		f := v.finding
 		f.Rule = id
 		f.Fix = vulnFix(v)
+		f.Blocker = true
 		f.Message = fmt.Sprintf("%s: %s (%s@%s, %s)", id, v.summary, v.module, v.version, fix)
 		findings = append(findings, f)
 	}
@@ -210,7 +212,9 @@ func vulnFix(v *vuln) string {
 var gosecExcluded = []string{"G104"}
 
 // Gosec runs the gosec security analyzer on non-test code. Severities are
-// gosec's own; only HIGH and MEDIUM findings affect the score.
+// gosec's own; only HIGH and MEDIUM findings affect the score. Findings with
+// HIGH severity and HIGH confidence are blockers (see BlockerCap): the
+// confidence requirement leaves out noisy rules such as G115 and G101.
 func Gosec() Check {
 	return checkFunc{name: "gosec", category: Security, weight: 0.10, run: runGosec}
 }
@@ -253,13 +257,11 @@ func runGosec(_ context.Context, env *Env) Result {
 	var findings, serious []Finding
 	bySeverity := make(map[issue.Score]int)
 	for _, is := range issues {
-		if is.NoSec {
-			continue
-		}
 		f := Finding{
 			Rule:     is.RuleID,
 			Severity: is.Severity.String(),
 			Message:  fmt.Sprintf("%s (confidence: %s)", is.What, is.Confidence),
+			Blocker:  is.Severity == issue.High && is.Confidence == issue.High,
 		}
 		if pf := p.File(is.File); pf != nil {
 			if pf.Generated || pf.Test {
@@ -272,6 +274,12 @@ func runGosec(_ context.Context, env *Env) Result {
 		line, _, _ := strings.Cut(is.Line, "-")
 		f.Line, _ = strconv.Atoi(line)
 		f.Column, _ = strconv.Atoi(is.Col)
+		// gosec reports issues silenced by #nosec with their suppressions;
+		// count them like //nolint rather than dropping them silently.
+		if len(is.Suppressions) > 0 {
+			env.suppress.record("gosec")
+			continue
+		}
 		if env.suppressed("gosec", f) {
 			continue
 		}
@@ -295,7 +303,8 @@ func runGosec(_ context.Context, env *Env) Result {
 }
 
 func newGosec() *gosec.Analyzer {
-	a := gosec.NewAnalyzer(gosec.NewConfig(), false, true, false, 1, log.New(io.Discard, "", 0))
+	// trackSuppressions returns #nosec-suppressed issues so they can be counted.
+	a := gosec.NewAnalyzer(gosec.NewConfig(), false, true, true, 1, log.New(io.Discard, "", 0))
 	a.LoadRules(rules.Generate(false, rules.NewRuleFilter(true, gosecExcluded...)).RulesInfo())
 	a.LoadAnalyzers(analyzers.Generate(false).AnalyzersInfo())
 	return a

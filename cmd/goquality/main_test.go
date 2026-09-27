@@ -92,7 +92,7 @@ func TestRunAgent(t *testing.T) {
 			if code := run(args, &stdout, &stderr); code != 0 {
 				t.Fatalf("exit code %d, stderr: %s", code, stderr.String())
 			}
-			got := strings.HasPrefix(stdout.String(), "goquality: grade")
+			got := strings.Contains(stdout.String(), ": grade ")
 			if got != tt.agent {
 				t.Errorf("agent format = %v, want %v:\n%s", got, tt.agent, stdout.String())
 			}
@@ -295,7 +295,7 @@ func TestRunFrom(t *testing.T) {
 			return json.Unmarshal([]byte(out), &got) == nil && json.Unmarshal(s.Report, &want) == nil &&
 				fmt.Sprint(got) == fmt.Sprint(want)
 		}},
-		{"agent", []string{"--agent"}, func(out string) bool { return strings.HasPrefix(out, "goquality: grade") }},
+		{"agent", []string{"--agent"}, func(out string) bool { return strings.HasPrefix(out, "goquality") && strings.Contains(out, "): grade ") }},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			stdout.Reset()

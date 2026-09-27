@@ -57,6 +57,9 @@ type Finding struct {
 	Severity string `json:"severity,omitempty"` // as defined by the underlying tool
 	Message  string `json:"message"`
 	Fix      string `json:"fix,omitempty"` // how to fix it, when known
+	// Blocker marks a finding serious enough to cap the overall score at
+	// BlockerCap until it is fixed; see Report.Blockers.
+	Blocker bool `json:"blocker,omitempty"`
 	// LineHash identifies the flagged source line by its content, so that
 	// a comparison can tell identical findings apart after lines move. It
 	// is only set in snapshots.
@@ -107,16 +110,25 @@ type Env struct {
 	suppress suppressions
 }
 
+// BlockerCap is the highest score a report with blocker findings can have:
+// grade B at best.
+const BlockerCap = 80.0
+
 // Report is the combined result of a run.
 type Report struct {
-	Stats      project.Stats `json:"project"`
-	Grade      Grade         `json:"grade"`
-	Score      float64       `json:"score"` // 0..100
-	Issues     int           `json:"issues"`
-	Suppressed int           `json:"suppressed"`
-	Checks     []Result      `json:"checks"`
-	NextSteps  []Step        `json:"next_steps,omitempty"`
-	Duration   float64       `json:"duration_seconds"`
+	Version string        `json:"goquality_version,omitempty"` // set by the caller
+	Stats   project.Stats `json:"project"`
+	Grade   Grade         `json:"grade"`
+	Score   float64       `json:"score"` // 0..100
+	// Blockers counts findings that cap Score at BlockerCap. UncappedScore
+	// is the score without the cap, set only when the cap lowered it.
+	Blockers      int      `json:"blockers,omitempty"`
+	UncappedScore float64  `json:"uncapped_score,omitempty"`
+	Issues        int      `json:"issues"`
+	Suppressed    int      `json:"suppressed"`
+	Checks        []Result `json:"checks"`
+	NextSteps     []Step   `json:"next_steps,omitempty"`
+	Duration      float64  `json:"duration_seconds"`
 }
 
 // Run runs checks concurrently against a loaded project.
@@ -158,18 +170,42 @@ func Run(ctx context.Context, p *project.Project, checks []Check, opts Options) 
 	for _, r := range results {
 		rep.Issues += len(r.Findings)
 		rep.Suppressed += r.Suppressed
+		rep.Blockers += blockers(r.Findings)
 		if r.Score != nil && r.Weight > 0 {
 			total += *r.Score * r.Weight
 			weight += r.Weight
 		}
 	}
+	var uncapped float64
 	if weight > 0 {
-		rep.Score = total / weight * 100
+		uncapped = total / weight * 100
 	}
-	rep.NextSteps = nextSteps(results, weight)
+	rep.Score = capScore(uncapped, rep.Blockers > 0)
+	if rep.Score < uncapped {
+		rep.UncappedScore = uncapped
+	}
+	rep.NextSteps = nextSteps(results, weight, uncapped)
 	rep.Grade = GradeFromPercentage(rep.Score)
 	rep.Duration = time.Since(start).Seconds()
 	return rep
+}
+
+// capScore applies BlockerCap to score when there are blockers.
+func capScore(score float64, blocked bool) float64 {
+	if blocked {
+		return min(score, BlockerCap)
+	}
+	return score
+}
+
+func blockers(findings []Finding) int {
+	n := 0
+	for _, f := range findings {
+		if f.Blocker {
+			n++
+		}
+	}
+	return n
 }
 
 // finalize fills in defaults shared by all checks: sorted findings, a status

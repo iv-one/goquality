@@ -190,10 +190,10 @@ func (e *Env) suppressed(check string, f Finding) bool {
 }
 
 // Nolint reports //nolint directives that do not name the linters they
-// silence or do not explain why. Suppressions are sometimes right, but each
-// one should be deliberate and reviewable.
+// silence or do not explain why. It is informational: suppressing findings
+// is the user's call, so it does not affect the score or fail comparisons.
 func Nolint() Check {
-	return checkFunc{name: "nolint", category: Maintainability, weight: 0.05, run: func(_ context.Context, env *Env) Result {
+	return checkFunc{name: "nolint", category: Maintainability, weight: 0, run: func(_ context.Context, env *Env) Result {
 		files := env.Project.SourceFiles(true)
 		var findings []Finding
 		for _, f := range files {
@@ -206,6 +206,6 @@ func Nolint() Check {
 				})
 			}
 		}
-		return Result{Findings: findings, Score: fileScore(len(files), findings)}
+		return Result{Status: Info, Findings: findings}
 	}}
 }
