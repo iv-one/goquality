@@ -252,4 +252,82 @@ func TestRunBadges(t *testing.T) {
 	if !bytes.Equal(fromRun, fromSnap) {
 		t.Errorf("badge from snapshot differs:\n%s\nvs\n%s", fromSnap, fromRun)
 	}
+
+	// Without --cover there is no coverage to show.
+	cov, err := os.ReadFile(filepath.Join(out, "coverage.svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(cov, []byte(`aria-label="Go coverage: n/a"`)) {
+		t.Errorf("coverage.svg:\n%s", cov)
+	}
+}
+
+func TestRunFrom(t *testing.T) {
+	dir := t.TempDir()
+	snap := filepath.Join(dir, "snap.json")
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"collect", "--only", "errcheck,gofmt", "-o", snap, sample}, &stdout, &stderr); code != 0 {
+		t.Fatalf("collect: exit code %d, stderr: %s", code, stderr.String())
+	}
+	data, err := os.ReadFile(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s struct {
+		Report json.RawMessage
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		t.Fatal(err)
+	}
+
+	// Each format renders the snapshot's report as it was collected.
+	for _, tt := range []struct {
+		name string
+		args []string
+		want func(string) bool
+	}{
+		{"verbose", []string{"-v", "--agent=false"}, func(out string) bool {
+			return strings.HasPrefix(out, "Go Quality  example.com/sample") && strings.Contains(out, "main.go:12")
+		}},
+		{"json", []string{"--json"}, func(out string) bool {
+			var got, want any
+			return json.Unmarshal([]byte(out), &got) == nil && json.Unmarshal(s.Report, &want) == nil &&
+				fmt.Sprint(got) == fmt.Sprint(want)
+		}},
+		{"agent", []string{"--agent"}, func(out string) bool { return strings.HasPrefix(out, "goquality: grade") }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout.Reset()
+			if code := run(append([]string{"--from", snap}, tt.args...), &stdout, &stderr); code != 0 {
+				t.Fatalf("exit code %d, stderr: %s", code, stderr.String())
+			}
+			if !tt.want(stdout.String()) {
+				t.Errorf("unexpected report:\n%s", stdout.String())
+			}
+		})
+	}
+
+	for _, tt := range []struct {
+		args []string
+		want int
+	}{
+		{[]string{"--from", snap, "--min-score", "99.9"}, 1},
+		{[]string{"--from", snap, "--min-score", "1"}, 0},
+		{[]string{"--from", filepath.Join(dir, "missing.json")}, 2},
+		{[]string{"--from", snap, "--cover"}, 2},
+		{[]string{"--from", snap, "--only", "errcheck"}, 2},
+		{[]string{"--from", snap, "--skip", "gofmt"}, 2},
+		{[]string{"--from", snap, "--no-security"}, 2},
+		{[]string{"--from", snap, "--cyclo-over", "10"}, 2},
+		{[]string{"--from", snap, "-C", dir}, 2},
+		{[]string{"--from", snap, sample}, 2},
+		{[]string{"badges", "--from", snap, "--cover", "-o", dir}, 2},
+	} {
+		stdout.Reset()
+		stderr.Reset()
+		if got := run(tt.args, &stdout, &stderr); got != tt.want {
+			t.Errorf("run(%q) = %d, want %d; stderr: %s", tt.args, got, tt.want, stderr.String())
+		}
+	}
 }

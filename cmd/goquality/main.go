@@ -4,6 +4,7 @@
 // Usage:
 //
 //	goquality [flags] [dir | packages]
+//	goquality --from snapshot.json [flags]
 //	goquality collect [flags] [dir | packages]
 //	goquality compare [flags] baseline.json current.json
 //	goquality check [--baseline ref|file.json] [flags] [dir | packages]
@@ -19,9 +20,11 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"github.com/iv-one/goquality/internal/check"
+	"github.com/iv-one/goquality/internal/compare"
 	"github.com/iv-one/goquality/internal/git"
 	"github.com/iv-one/goquality/internal/project"
 	"github.com/iv-one/goquality/internal/report"
@@ -32,17 +35,20 @@ var usages = map[string]string{
 
 Usage:
   goquality [flags] [dir | packages]
+  goquality --from snapshot.json [-v | --json | --agent] [--min-score n]
   goquality collect | compare | check | badges ... (run "goquality <command> -h")
 
 With no arguments, goquality analyzes ./... in the current directory.
 A single directory argument analyzes that directory recursively; otherwise
-arguments are package patterns, as for "go build".
+arguments are package patterns, as for "go build". With --from, goquality
+prints the report stored in a snapshot written by "goquality collect"
+instead of analyzing; analysis flags and packages are then rejected.
 
 Commands:
   collect   write a snapshot of the report, to compare later
   compare   compare two snapshots and fail on regressions
   check     compare the working tree with a baseline revision
-  badges    write score and grade SVG badges for a README
+  badges    write score, grade and coverage SVG badges for a README
 
 Flags:
 `,
@@ -66,9 +72,10 @@ Exit codes: 0 no regressions, 1 regressions, 2 usage or load error.
 
 Flags:
 `,
-	"badges": `Badges writes score.svg ("Go Quality | 92/100") and grade.svg
-("Go Quality | A+") for a README. They show the report's score and grade,
-from an analysis run or from a snapshot written by "goquality collect".
+	"badges": `Badges writes score.svg ("Go Quality | 92/100"), grade.svg ("Go Quality | A+")
+and coverage.svg ("Go coverage | 85%") for a README. They show the report's
+score, grade and test coverage, from an analysis run or from a snapshot
+written by "goquality collect". Coverage is "n/a" unless it ran with --cover.
 
 Usage:
   goquality badges [-o dir] [flags] [dir | packages]
@@ -110,7 +117,7 @@ type options struct {
 	cyclo      int
 	version    bool
 	output     string   // collect: file to write the snapshot to; badges: directory
-	from       string   // badges: snapshot to render instead of analyzing
+	from       string   // report, badges: snapshot to render instead of analyzing
 	baseline   string   // check: git ref or snapshot file
 	args       []string // positional arguments
 }
@@ -163,24 +170,23 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return runReport(ctx, o, checks, stdout, stderr, logf)
 }
 
-// runReport prints the report and applies --min-score.
+// runReport prints the report, from a fresh analysis or a snapshot (--from),
+// and applies --min-score.
 func runReport(ctx context.Context, o options, checks []check.Check, stdout, stderr io.Writer, logf logFunc) int {
-	dir, patterns := target(o)
-	status := newStatus(stderr, !o.json && !o.agent)
-	status.set("loading packages")
-	p, err := project.Load(ctx, dir, patterns)
-	if err != nil {
-		status.clear()
-		logf("%v", err)
-		return 2
-	}
-
-	status.set("analyzing " + displayName(p))
-	rep := check.Run(ctx, p, checks, runOptions(o))
-	status.clear()
-	if ctx.Err() != nil {
-		logf("interrupted")
-		return 2
+	var rep check.Report
+	if o.from != "" {
+		snap, err := compare.Read(o.from)
+		if err != nil {
+			logf("%v", err)
+			return 2
+		}
+		rep = snap.Report
+	} else {
+		var err error
+		if rep, err = analyze(ctx, o, checks, stderr); err != nil {
+			logf("%v", err)
+			return 2
+		}
 	}
 
 	if err := render(stdout, rep, o); err != nil {
@@ -194,6 +200,25 @@ func runReport(ctx context.Context, o options, checks []check.Check, stdout, std
 		return 1
 	}
 	return 0
+}
+
+// analyze loads the target and runs the checks on it.
+func analyze(ctx context.Context, o options, checks []check.Check, stderr io.Writer) (check.Report, error) {
+	dir, patterns := target(o)
+	status := newStatus(stderr, !o.json && !o.agent)
+	defer status.clear()
+	status.set("loading packages")
+	p, err := project.Load(ctx, dir, patterns)
+	if err != nil {
+		return check.Report{}, err
+	}
+
+	status.set("analyzing " + displayName(p))
+	rep := check.Run(ctx, p, checks, runOptions(o))
+	if ctx.Err() != nil {
+		return check.Report{}, errors.New("interrupted")
+	}
+	return rep, nil
 }
 
 // command splits off the subcommand, if any; plain goquality is "report".
@@ -235,6 +260,7 @@ func parseFlags(cmd string, args []string, stderr io.Writer) (options, error) {
 	case "report":
 		fs.Float64Var(&o.minScore, "min-score", 0, "exit with status 1 if the score is below `percent`")
 		fs.BoolVar(&o.version, "version", false, "print version and exit")
+		fs.StringVar(&o.from, "from", "", "render the report from a snapshot `file` instead of analyzing")
 	case "collect":
 		fs.StringVar(&o.output, "o", "", "write the snapshot to `file` instead of standard output")
 	case "badges":
@@ -258,11 +284,39 @@ func parseFlags(cmd string, args []string, stderr io.Writer) (options, error) {
 		}
 		args = fs.Args()
 		if len(args) == 0 {
-			return o, nil
+			return o, checkFrom(fs, o, stderr)
 		}
 		o.args = append(o.args, args[0])
 		args = args[1:]
 	}
+}
+
+// analysisFlags only affect an analysis run, so they conflict with --from.
+var analysisFlags = []string{"C", "cover", "no-security", "skip", "only", "cyclo-over"}
+
+// checkFrom rejects what a snapshot cannot honor: a snapshot is rendered
+// as it was collected, so analysis flags and packages would be ignored.
+func checkFrom(fs *flag.FlagSet, o options, stderr io.Writer) error {
+	if o.from == "" {
+		return nil
+	}
+	var set []string
+	fs.Visit(func(f *flag.Flag) {
+		if slices.Contains(analysisFlags, f.Name) {
+			set = append(set, strings.Repeat("-", min(len(f.Name), 2))+f.Name)
+		}
+	})
+	var err error
+	switch {
+	case len(set) > 0:
+		err = fmt.Errorf("--from renders a snapshot as collected; %s only apply when analyzing", strings.Join(set, ", "))
+	case len(o.args) > 0:
+		err = fmt.Errorf("--from renders a snapshot as collected; it takes no packages (got %s)", strings.Join(o.args, " "))
+	}
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "goquality: %v\n", err)
+	}
+	return err
 }
 
 // useAgentFormat reports whether to print the agent report: when asked to,

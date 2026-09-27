@@ -12,8 +12,9 @@ import (
 	"github.com/iv-one/goquality/internal/compare"
 )
 
-// runBadges writes score.svg and grade.svg to o.output, from a snapshot
-// (--from) or from a fresh analysis.
+// runBadges writes score.svg, grade.svg and coverage.svg to o.output, from a
+// snapshot (--from) or from a fresh analysis. coverage.svg says "n/a" unless
+// the report was produced with --cover.
 func runBadges(ctx context.Context, o options, checks []check.Check, stdout, stderr io.Writer, logf logFunc) int {
 	var rep check.Report
 	if o.from != "" {
@@ -45,6 +46,7 @@ func runBadges(ctx context.Context, o options, checks []check.Check, stdout, std
 	}{
 		{"score.svg", badge.Score(rep)},
 		{"grade.svg", badge.Grade(rep)},
+		{"coverage.svg", badge.Coverage(rep)},
 	} {
 		path := filepath.Join(o.output, b.name)
 		if err := os.WriteFile(path, b.svg, 0o644); err != nil { //nolint:gosec // badges are public images; the user chooses the directory

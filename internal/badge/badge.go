@@ -1,5 +1,5 @@
-// Package badge renders a report's score and grade as static SVG badges for
-// a README. It only presents the report; it computes nothing about quality.
+// Package badge renders a report's score, grade and test coverage as static
+// SVG badges for a README. It only presents the report; it computes nothing about quality.
 package badge
 
 import (
@@ -11,8 +11,15 @@ import (
 	"github.com/iv-one/goquality/internal/check"
 )
 
-// Label is the left-hand text of every badge.
+// Label is the left-hand text of the score and grade badges.
 const Label = "Go Quality"
+
+// CoverageLabel is the left-hand text of the coverage badge. It differs from
+// Label so that a bare percentage is not mistaken for the score.
+const CoverageLabel = "Go coverage"
+
+// Unknown is the color of a badge whose value is not available.
+const Unknown = "#9f9f9f"
 
 // Score renders "Go Quality | 92/100", rounded to the nearest point as the
 // report rounds it.
@@ -23,6 +30,21 @@ func Score(rep check.Report) []byte {
 // Grade renders "Go Quality | A+".
 func Grade(rep check.Report) []byte {
 	return SVG(Label, string(rep.Grade), Color(rep.Grade))
+}
+
+// Coverage renders "Go coverage | 85%" from the coverage check, rounded to
+// the nearest point and colored like a grade for that percentage. It renders
+// "n/a" in grey when coverage was not measured: the check was skipped (no
+// --cover), failed, or reported no score.
+func Coverage(rep check.Report) []byte {
+	for _, r := range rep.Checks {
+		if r.Name != "coverage" || r.Score == nil || r.Status == check.Skipped || r.Status == check.Failed {
+			continue
+		}
+		pct := *r.Score * 100
+		return SVG(CoverageLabel, fmt.Sprintf("%d%%", int(math.Round(pct))), Color(check.GradeFromPercentage(pct)))
+	}
+	return SVG(CoverageLabel, "n/a", Unknown)
 }
 
 // Color is the badge color for a grade, from green to red. The value on the
@@ -77,7 +99,8 @@ var widths = map[rune]float64{
 	' ': 3.87, '/': 4.93, '+': 9.21, '-': 4.99, '.': 3.87, '%': 12.06,
 	'0': 7, '1': 7, '2': 7, '3': 7, '4': 7, '5': 7, '6': 7, '7': 7, '8': 7, '9': 7,
 	'A': 7.52, 'B': 7.54, 'C': 7.68, 'D': 8.48, 'E': 6.96, 'F': 6.32, 'G': 8.38, 'Q': 8.66,
-	'a': 6.66, 'i': 3.08, 'l': 3.08, 'o': 6.72, 't': 4.26, 'u': 7.12, 'y': 6.51,
+	'a': 6.66, 'c': 5.73, 'e': 6.59, 'g': 6.6, 'i': 3.08, 'l': 3.08, 'n': 7.12, 'o': 6.72,
+	'r': 4.69, 't': 4.26, 'u': 7.12, 'v': 6.52, 'y': 6.51,
 }
 
 func textWidth(s string) int {
