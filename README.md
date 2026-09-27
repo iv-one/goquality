@@ -337,25 +337,67 @@ The score is the weighted average of the checks that ran. For linters, a
 check's score is the share of files with no findings, as in Go Report Card.
 The grade uses Go Report Card's thresholds (A+ above 90%, A above 80%, ...).
 
-The different kinds of security findings are scored differently:
-
-- **govulncheck:** only vulnerabilities in code the project actually calls
-  lower the score. Vulnerable packages that are imported but not called, and
-  vulnerable modules that are only required, are reported but not scored.
-- **gosec:** only HIGH and MEDIUM findings affect the score. G104 (unhandled
-  errors) is excluded because it duplicates errcheck.
-
-Some security findings are **blockers**: while any remains, the score is
-capped at 80%, so the grade is B at best, however clean the rest of the
-project is. Blockers are vulnerabilities in code the project calls, and gosec
-findings with HIGH severity *and* HIGH confidence, such as G402
-(`InsecureSkipVerify: true`). The confidence requirement leaves out noisy
-rules such as G115 (integer overflow) and G101 (hardcoded credentials). The
-report says when the score is capped and what it would be without the cap,
-and next steps list checks with blockers first.
-
 Generated files (with a `// Code generated ... DO NOT EDIT.` header) are
 counted in the project statistics but excluded from all checks.
+
+### How security affects the score
+
+Security affects the score in two ways: as two weighted checks, like every
+other check, and through **blockers**, which cap the whole score.
+
+**Weighted checks.** `govulncheck` and `gosec` each weigh 0.10. Without
+`--cover` all weights add up to 1.20, so each security check accounts for
+about 8.3 points of the score (7.7 with `--cover`):
+
+- **govulncheck:** each vulnerability in code the project actually calls
+  takes 25% off the check, so four or more bring it to 0. Vulnerable packages
+  that are imported but not called, and vulnerable modules that are only
+  required, are reported as metrics but not scored.
+- **gosec:** the check's score is the share of non-test files with no HIGH or
+  MEDIUM finding. LOW findings are listed but not scored. G104 (unhandled
+  errors) is excluded because it duplicates errcheck.
+
+**Blockers.** A weighted average spreads one serious problem across the whole
+project: a single `InsecureSkipVerify: true` in a 100-file project would cost
+less than a tenth of a point. So some findings are blockers. While any
+remains, the score is capped at **80%, so the grade is B at best**, however
+clean the rest of the project is. Blockers are:
+
+- vulnerabilities in code the project calls (govulncheck), and
+- gosec findings with HIGH severity *and* HIGH confidence. In gosec v2.29
+  these come from G108 (pprof endpoint exposed), G402 (`InsecureSkipVerify`,
+  TLS versions or cipher suites that are too weak), G123 (TLS resumption
+  bypassing `VerifyPeerCertificate`), G407 (hardcoded nonce or IV), G408
+  (`ssh.PublicKeyCallback` misuse), and some findings of G119 (redirects
+  forwarding sensitive headers) and G121 (CORS protection bypass).
+
+Both the severity and the confidence are gosec's own. The confidence
+requirement leaves out noisy rules such as G115 (integer overflow, HIGH
+severity, MEDIUM confidence) and G101 (hardcoded credentials, LOW
+confidence).
+
+Because the cap applies to the score itself, the grade, the badges,
+`--min-score` and the JSON report all agree. The report says when the score
+is capped and what it would be without the cap. `-v` marks blocker findings,
+and next steps (`--next`, and always in the agent format) list checks with
+blockers first, with the gain of lifting the cap:
+
+```text
+Grade .................................. B
+Score .............................. 80.0%
+  capped at 80% by 1 blocker (97.3% without it)
+...
+      tls.go:7:48 [HIGH, blocker] TLS InsecureSkipVerify set to true. (confidence: HIGH) (G402)
+```
+
+In JSON, blocker findings have `"blocker": true`, and the report has
+`blockers` and, when the cap lowered the score, `uncapped_score`.
+
+A blocker can be suppressed like any finding, for example
+`//nolint:gosec // pprof is only served on localhost`. Suppressions are
+counted in the report (see [Suppressing findings](#suppressing-findings)).
+With `--no-security` or `--skip gosec,govulncheck`, security checks do not
+run, so they neither count toward the score nor cap it.
 
 ## Suppressing findings
 

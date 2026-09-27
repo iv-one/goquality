@@ -17,8 +17,8 @@ at 80%, so the grade is B at best. Blockers are:
 
 - govulncheck vulnerabilities whose vulnerable symbol is called, and
 - gosec findings with HIGH severity *and* HIGH confidence (G402 weak TLS,
-  G106 SSH host key ignored, G108 exposed pprof, and gosec's TLS resumption,
-  redirect header, CORS bypass and hardcoded nonce analyzers).
+  G108 exposed pprof, G123 TLS resumption bypass, G407 hardcoded nonce, G408
+  SSH callback misuse, and some G119 and G121 findings).
 
 The confidence filter is what makes this work: it leaves out G115 (integer
 overflow, HIGH/MEDIUM) and G101 (hardcoded credentials, HIGH/LOW), the two
