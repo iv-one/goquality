@@ -2,6 +2,7 @@
 
 [![Go Quality score](https://raw.githubusercontent.com/iv-one/goquality/quality-history/badges/score.svg)](https://github.com/iv-one/goquality/blob/quality-history/report.txt)
 [![Go Quality grade](https://raw.githubusercontent.com/iv-one/goquality/quality-history/badges/grade.svg)](https://github.com/iv-one/goquality/blob/quality-history/report.txt)
+[![Go coverage](https://raw.githubusercontent.com/iv-one/goquality/quality-history/badges/coverage.svg)](https://github.com/iv-one/goquality/blob/quality-history/report.txt)
 
 `goquality` gives developers, coding agents and CI a fast summary of the
 health of a Go codebase: correctness, maintainability, tests and security, in
@@ -87,6 +88,7 @@ goquality --no-security    # skip govulncheck and gosec (e.g. offline)
 goquality --skip misspell,gosec
 goquality --only errcheck  # quick re-check of specific checks
 goquality --min-score 90   # exit 1 if the score is below 90%
+goquality --from quality.json -v  # print a snapshot from goquality collect
 ```
 
 Every report ends with **next steps**: the checks ranked by how many score
@@ -106,6 +108,13 @@ The same data is in the JSON report as `next_steps`.
 Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
 
 `--cover` is opt-in because it executes the project's tests.
+
+`--from` prints the report stored in a snapshot written by `goquality
+collect` instead of analyzing, so the report shows exactly what the snapshot
+holds. It works with `--verbose`, `--json`, `--agent` and `--min-score`.
+Flags that only affect an analysis (`-C`, `--cover`, `--no-security`,
+`--skip`, `--only`, `--cyclo-over`) and package arguments are a usage error
+with `--from`: set them when collecting the snapshot.
 
 ## For coding agents
 
@@ -244,15 +253,18 @@ For pull requests into a branch other than the default, set
 
 ## README badges
 
-`goquality badges` writes two static SVG badges from the report's score and
-grade: `score.svg` ("Go Quality | 93/100") and `grade.svg` ("Go Quality |
-A+"). They are self-contained, with no scripts or remote assets, and the same
+`goquality badges` writes three static SVG badges from the report:
+`score.svg` ("Go Quality | 93/100"), `grade.svg` ("Go Quality | A+") and
+`coverage.svg` ("Go coverage | 85%"). The score and grade badges are colored
+by grade, and the coverage badge like the grade that percentage would get.
+Coverage shows "n/a" in grey unless the report was produced with `--cover`.
+The badges are self-contained, with no scripts or remote assets, and the same
 result always gives the same bytes.
 
 ```bash
-goquality badges                         # analyze, write badges/score.svg and badges/grade.svg
-goquality badges -o /tmp/b --cover       # include coverage in the score
-goquality badges --from snapshot.json    # render a snapshot from goquality collect
+goquality badges                         # analyze, write badges/score.svg, grade.svg and coverage.svg
+goquality badges -o /tmp/b --cover       # measure coverage too (and include it in the score)
+goquality badges --from quality.json     # render a snapshot from goquality collect
 ```
 
 No badge service is needed. CI renders the badges for the default branch and
@@ -264,8 +276,11 @@ git switch --orphan quality-history && git commit --allow-empty -m "Start qualit
 git push origin quality-history && git switch -
 ```
 
-Then add a job that runs on pushes to main. The action installs goquality, so
-later steps can run it too:
+Then add a job that runs on pushes to main. It analyzes the project once,
+with coverage, into a snapshot (`goquality collect --cover`), and renders the
+badges and the report from that snapshot with `--from`, so the badges, the
+report and the snapshot always agree. The action installs goquality, so later
+steps can run it too:
 
 ```yaml
 badges:
@@ -281,9 +296,12 @@ badges:
         go-version-file: go.mod
     - uses: iv-one/goquality@v0
       with:
-        command: badges
-        args: -o ${{ runner.temp }}/badges
-    - run: '"$(go env GOPATH)/bin/goquality" -v > "$RUNNER_TEMP/report.txt"'
+        command: collect
+        args: --cover -o ${{ runner.temp }}/quality.json
+    - run: |
+        goquality="$(go env GOPATH)/bin/goquality"
+        "$goquality" badges --from "$RUNNER_TEMP/quality.json" -o "$RUNNER_TEMP/badges"
+        "$goquality" --from "$RUNNER_TEMP/quality.json" -v > "$RUNNER_TEMP/report.txt"
     - uses: actions/checkout@v4
       with:
         ref: quality-history
@@ -291,21 +309,32 @@ badges:
     - working-directory: quality-history
       run: |
         mkdir -p badges && cp "$RUNNER_TEMP"/badges/*.svg badges/
-        cp "$RUNNER_TEMP/report.txt" .
-        git add badges report.txt
+        cp "$RUNNER_TEMP/quality.json" "$RUNNER_TEMP/report.txt" .
+        git add badges quality.json report.txt
         git diff --cached --quiet && exit 0
         git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-          commit -m "Update badges and report for ${GITHUB_SHA::7}"
+          commit -m "Update quality snapshot for ${GITHUB_SHA::7}"
         git push
 ```
 
-The job also saves the full report (`goquality -v`) as `report.txt`, so the
-badges can link to the details behind the score. Reference them from the
-README, replacing `OWNER/REPO`:
+The `quality-history` branch then holds:
+
+- `badges/*.svg`, the badges.
+- `report.txt`, the full report (`goquality -v`), so the badges can link to
+  the details behind the score.
+- `quality.json`, the machine-readable snapshot (`goquality collect`, with
+  its `schema` version, commit, settings and the full JSON report). Other
+  tools, such as checkers that watch a fleet of repositories, can read it from
+  `https://raw.githubusercontent.com/OWNER/REPO/quality-history/quality.json`
+  instead of running goquality themselves, and it can serve as a baseline
+  for `goquality compare`.
+
+Reference the badges from the README, replacing `OWNER/REPO`:
 
 ```markdown
 [![Go Quality score](https://raw.githubusercontent.com/OWNER/REPO/quality-history/badges/score.svg)](https://github.com/OWNER/REPO/blob/quality-history/report.txt)
 [![Go Quality grade](https://raw.githubusercontent.com/OWNER/REPO/quality-history/badges/grade.svg)](https://github.com/OWNER/REPO/blob/quality-history/report.txt)
+[![Go coverage](https://raw.githubusercontent.com/OWNER/REPO/quality-history/badges/coverage.svg)](https://github.com/OWNER/REPO/blob/quality-history/report.txt)
 ```
 
 GitHub caches README images for a few minutes, so a new score can take a

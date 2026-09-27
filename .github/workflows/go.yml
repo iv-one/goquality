@@ -36,8 +36,9 @@ jobs:
         with:
           args: --verbose
 
-  # Publishes README badges and the report for main to the quality-history
-  # branch, using this repository's action as users would.
+  # Publishes README badges, the report and the quality.json snapshot for
+  # main to the quality-history branch, using this repository's action as
+  # users would.
   badges:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
@@ -55,19 +56,24 @@ jobs:
           go-version: '1.27.x'
           check-latest: true
 
-      - name: Render badges
+      # One analysis, with coverage, that the badges, the report and the
+      # published snapshot are all rendered from, so they agree.
+      - name: Collect snapshot
         uses: ./
         with:
-          command: badges
-          args: -o ${{ runner.temp }}/badges
+          command: collect
+          args: --cover -o ${{ runner.temp }}/quality.json
 
-      # The badges link here. The action installed goquality in GOPATH/bin.
-      - name: Render report
+      # The badges link to the report. The action installed goquality in
+      # GOPATH/bin.
+      - name: Render badges and report
         run: |
+          goquality="$(go env GOPATH)/bin/goquality"
+          "$goquality" badges --from "$RUNNER_TEMP/quality.json" -o "$RUNNER_TEMP/badges"
           {
             echo "goquality report for $GITHUB_REPOSITORY@$GITHUB_SHA ($(date -u +%Y-%m-%d))"
             echo
-            "$(go env GOPATH)/bin/goquality" -v --agent=false
+            "$goquality" --from "$RUNNER_TEMP/quality.json" -v --agent=false
           } > "$RUNNER_TEMP/report.txt"
 
       - uses: actions/checkout@v4
@@ -75,17 +81,17 @@ jobs:
           ref: quality-history
           path: quality-history
 
-      - name: Commit badges and report
+      - name: Commit snapshot, badges and report
         working-directory: quality-history
         run: |
           mkdir -p badges
           cp "$RUNNER_TEMP"/badges/*.svg badges/
-          cp "$RUNNER_TEMP/report.txt" .
-          git add badges report.txt
+          cp "$RUNNER_TEMP/quality.json" "$RUNNER_TEMP/report.txt" .
+          git add badges quality.json report.txt
           if git diff --cached --quiet; then
             echo "unchanged"
             exit 0
           fi
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -q -m "Update badges and report for ${GITHUB_SHA::7}"
+            commit -q -m "Update quality snapshot for ${GITHUB_SHA::7}"
           git push -q
