@@ -37,7 +37,8 @@ jobs:
           args: --verbose
 
   # Publishes README badges and the report for main to the quality-history
-  # branch, using this repository's action as users would.
+  # branch, using this repository's action as users would. One analysis
+  # (report.json) renders the badges and report.txt, so all three agree.
   badges:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
@@ -55,19 +56,21 @@ jobs:
           go-version: '1.27.x'
           check-latest: true
 
-      - name: Render badges
+      - name: Collect report
         uses: ./
         with:
-          command: badges
-          args: -o ${{ runner.temp }}/badges
+          command: collect
+          args: -o ${{ runner.temp }}/report.json
 
-      # The badges link here. The action installed goquality in GOPATH/bin.
-      - name: Render report
+      # The action installed goquality in GOPATH/bin.
+      - name: Render badges and report
         run: |
+          goquality="$(go env GOPATH)/bin/goquality"
+          "$goquality" badges --from "$RUNNER_TEMP/report.json" -o "$RUNNER_TEMP/badges"
           {
             echo "goquality report for $GITHUB_REPOSITORY@$GITHUB_SHA ($(date -u +%Y-%m-%d))"
             echo
-            "$(go env GOPATH)/bin/goquality" -v --agent=false
+            "$goquality" --from "$RUNNER_TEMP/report.json" -v --agent=false
           } > "$RUNNER_TEMP/report.txt"
 
       - uses: actions/checkout@v4
@@ -80,8 +83,8 @@ jobs:
         run: |
           mkdir -p badges
           cp "$RUNNER_TEMP"/badges/*.svg badges/
-          cp "$RUNNER_TEMP/report.txt" .
-          git add badges report.txt
+          cp "$RUNNER_TEMP/report.txt" "$RUNNER_TEMP/report.json" .
+          git add badges report.txt report.json
           if git diff --cached --quiet; then
             echo "unchanged"
             exit 0

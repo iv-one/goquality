@@ -4,6 +4,7 @@
 // Usage:
 //
 //	goquality [flags] [dir | packages]
+//	goquality --from snapshot.json [flags]
 //	goquality collect [flags] [dir | packages]
 //	goquality compare [flags] baseline.json current.json
 //	goquality check [--baseline ref|file.json] [flags] [dir | packages]
@@ -19,9 +20,11 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"github.com/iv-one/goquality/internal/check"
+	"github.com/iv-one/goquality/internal/compare"
 	"github.com/iv-one/goquality/internal/git"
 	"github.com/iv-one/goquality/internal/project"
 	"github.com/iv-one/goquality/internal/report"
@@ -32,11 +35,13 @@ var usages = map[string]string{
 
 Usage:
   goquality [flags] [dir | packages]
+  goquality --from snapshot.json [flags]
   goquality collect | compare | check | badges ... (run "goquality <command> -h")
 
 With no arguments, goquality analyzes ./... in the current directory.
 A single directory argument analyzes that directory recursively; otherwise
-arguments are package patterns, as for "go build".
+arguments are package patterns, as for "go build". With --from, it prints
+a snapshot written by "goquality collect" instead of analyzing.
 
 Commands:
   collect   write a snapshot of the report, to compare later
@@ -111,7 +116,7 @@ type options struct {
 	cyclo      int
 	version    bool
 	output     string   // collect: file to write the snapshot to; badges: directory
-	from       string   // badges: snapshot to render instead of analyzing
+	from       string   // report, badges: snapshot to render instead of analyzing
 	baseline   string   // check: git ref or snapshot file
 	args       []string // positional arguments
 }
@@ -164,25 +169,36 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return runReport(ctx, o, checks, stdout, stderr, logf)
 }
 
-// runReport prints the report and applies --min-score.
+// runReport prints the report, from a snapshot (--from) or from a fresh
+// analysis, and applies --min-score.
 func runReport(ctx context.Context, o options, checks []check.Check, stdout, stderr io.Writer, logf logFunc) int {
-	dir, patterns := target(o)
-	status := newStatus(stderr, !o.json && !o.agent)
-	status.set("loading packages")
-	p, err := project.Load(ctx, dir, patterns)
-	if err != nil {
-		status.clear()
-		logf("%v", err)
-		return 2
-	}
+	var rep check.Report
+	if o.from != "" {
+		snap, err := compare.Read(o.from)
+		if err != nil {
+			logf("%v", err)
+			return 2
+		}
+		rep = snap.Report
+	} else {
+		dir, patterns := target(o)
+		status := newStatus(stderr, !o.json && !o.agent)
+		status.set("loading packages")
+		p, err := project.Load(ctx, dir, patterns)
+		if err != nil {
+			status.clear()
+			logf("%v", err)
+			return 2
+		}
 
-	status.set("analyzing " + displayName(p))
-	rep := check.Run(ctx, p, checks, runOptions(o))
-	rep.Version = version()
-	status.clear()
-	if ctx.Err() != nil {
-		logf("interrupted")
-		return 2
+		status.set("analyzing " + displayName(p))
+		rep = check.Run(ctx, p, checks, runOptions(o))
+		rep.Version = version()
+		status.clear()
+		if ctx.Err() != nil {
+			logf("interrupted")
+			return 2
+		}
 	}
 
 	if err := render(stdout, rep, o); err != nil {
@@ -238,6 +254,7 @@ func parseFlags(cmd string, args []string, stderr io.Writer) (options, error) {
 		fs.Float64Var(&o.minScore, "min-score", 0, "exit with status 1 if the score is below `percent`")
 		fs.BoolVar(&o.next, "next", false, "end the report with next steps: what to fix for the most score gain")
 		fs.BoolVar(&o.version, "version", false, "print version and exit")
+		fs.StringVar(&o.from, "from", "", "print the report of a snapshot `file` instead of analyzing")
 	case "collect":
 		fs.StringVar(&o.output, "o", "", "write the snapshot to `file` instead of standard output")
 	case "badges":
@@ -261,11 +278,38 @@ func parseFlags(cmd string, args []string, stderr io.Writer) (options, error) {
 		}
 		args = fs.Args()
 		if len(args) == 0 {
-			return o, nil
+			break
 		}
 		o.args = append(o.args, args[0])
 		args = args[1:]
 	}
+	if err := checkFrom(fs, o); err != nil {
+		_, _ = fmt.Fprintf(stderr, "%s: %v\n", name, err)
+		return o, err
+	}
+	return o, nil
+}
+
+// analysisFlags change what an analysis reports, so they can't apply to a
+// snapshot that was already collected.
+var analysisFlags = []string{"C", "cover", "no-security", "skip", "only", "cyclo-over"}
+
+// checkFrom refuses analysis flags and arguments with --from instead of
+// silently ignoring them.
+func checkFrom(fs *flag.FlagSet, o options) error {
+	if o.from == "" {
+		return nil
+	}
+	if len(o.args) > 0 {
+		return fmt.Errorf("--from renders a snapshot; it takes no packages (got %s)", strings.Join(o.args, " "))
+	}
+	var err error
+	fs.Visit(func(f *flag.Flag) {
+		if err == nil && slices.Contains(analysisFlags, f.Name) {
+			err = fmt.Errorf("--%s changes the analysis and cannot be used with --from", f.Name)
+		}
+	})
+	return err
 }
 
 // useAgentFormat reports whether to print the agent report: when asked to,

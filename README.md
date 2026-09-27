@@ -88,6 +88,7 @@ goquality --no-security    # skip govulncheck and gosec (e.g. offline)
 goquality --skip misspell,gosec
 goquality --only errcheck  # quick re-check of specific checks
 goquality --min-score 90   # exit 1 if the score is below 90%
+goquality --from snap.json # print a snapshot from goquality collect, any format
 ```
 
 With `--next`, the report ends with **next steps**: the checks ranked by how
@@ -268,8 +269,10 @@ git switch --orphan quality-history && git commit --allow-empty -m "Start qualit
 git push origin quality-history && git switch -
 ```
 
-Then add a job that runs on pushes to main. The action installs goquality, so
-later steps can run it too:
+Then add a job that runs on pushes to main. It analyzes once, with
+`goquality collect`, and renders the badges and the text report from that
+snapshot, so all three agree. The action installs goquality, so later steps
+can run it too:
 
 ```yaml
 badges:
@@ -285,9 +288,12 @@ badges:
         go-version-file: go.mod
     - uses: iv-one/goquality@v0
       with:
-        command: badges
-        args: -o ${{ runner.temp }}/badges
-    - run: '"$(go env GOPATH)/bin/goquality" -v > "$RUNNER_TEMP/report.txt"'
+        command: collect
+        args: -o ${{ runner.temp }}/report.json
+    - run: |
+        goquality="$(go env GOPATH)/bin/goquality"
+        "$goquality" badges --from "$RUNNER_TEMP/report.json" -o "$RUNNER_TEMP/badges"
+        "$goquality" --from "$RUNNER_TEMP/report.json" -v --agent=false > "$RUNNER_TEMP/report.txt"
     - uses: actions/checkout@v4
       with:
         ref: quality-history
@@ -295,8 +301,8 @@ badges:
     - working-directory: quality-history
       run: |
         mkdir -p badges && cp "$RUNNER_TEMP"/badges/*.svg badges/
-        cp "$RUNNER_TEMP/report.txt" .
-        git add badges report.txt
+        cp "$RUNNER_TEMP/report.txt" "$RUNNER_TEMP/report.json" .
+        git add badges report.txt report.json
         git diff --cached --quiet && exit 0
         git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
           commit -m "Update badges and report for ${GITHUB_SHA::7}"
@@ -304,8 +310,9 @@ badges:
 ```
 
 The job also saves the full report (`goquality -v`) as `report.txt`, so the
-badges can link to the details behind the score. Reference them from the
-README, replacing `OWNER/REPO`:
+badges can link to the details behind the score, and the snapshot as
+`report.json` for tools. Reference the badges from the README, replacing
+`OWNER/REPO`:
 
 ```markdown
 [![Go Quality score](https://raw.githubusercontent.com/OWNER/REPO/quality-history/badges/score.svg)](https://github.com/OWNER/REPO/blob/quality-history/report.txt)
@@ -314,6 +321,15 @@ README, replacing `OWNER/REPO`:
 
 GitHub caches README images for a few minutes, so a new score can take a
 moment to show up.
+
+Dashboards, agents and other tools can read the latest result for the default
+branch from
+`https://raw.githubusercontent.com/OWNER/REPO/quality-history/report.json`.
+It is the `goquality collect` snapshot: `report` is the same as
+`goquality --json`, alongside the `commit`, `timestamp`, `goquality_version`
+and the `settings` it was produced with. New fields may be added at any time;
+renaming or removing one increments `schema`. The history of the branch is the
+history of the report.
 
 ## Checks
 
