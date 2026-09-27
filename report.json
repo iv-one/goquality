@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "goquality_version": "v0.0.0-20260927121013-e05db351e57a",
-  "commit": "e05db351e57ad0a8a058b63109dc66fa38530274",
-  "timestamp": "2026-09-27T12:13:21Z",
+  "goquality_version": "v0.0.0-20260927123552-481826b7073f",
+  "commit": "481826b7073fa2edb9d81d5edc3d142a08a4905a",
+  "timestamp": "2026-09-27T12:38:54Z",
   "settings": {
     "patterns": [
       "./..."
@@ -26,7 +26,7 @@
     "cyclo_over": 15
   },
   "report": {
-    "goquality_version": "v0.0.0-20260927121013-e05db351e57a",
+    "goquality_version": "v0.0.0-20260927123552-481826b7073f",
     "project": {
       "module": "github.com/iv-one/goquality",
       "go_version": "1.27.1",
@@ -35,11 +35,11 @@
       "go_files": 32,
       "test_files": 10,
       "generated_files": 0,
-      "lines": 5389,
-      "code_lines": 3505,
-      "test_code_lines": 1116,
-      "functions": 178,
-      "tests": 41,
+      "lines": 5519,
+      "code_lines": 3554,
+      "test_code_lines": 1170,
+      "functions": 182,
+      "tests": 42,
       "benchmarks": 0,
       "fuzz_tests": 0,
       "examples": 0,
@@ -60,7 +60,7 @@
         "summary": "PASS",
         "weight": 0.1,
         "score": 1,
-        "duration_seconds": 0.000003136
+        "duration_seconds": 0.000003735
       },
       {
         "name": "govet",
@@ -70,7 +70,7 @@
         "summary": "PASS",
         "weight": 0.2,
         "score": 1,
-        "duration_seconds": 4.017066752
+        "duration_seconds": 2.902256596
       },
       {
         "name": "staticcheck",
@@ -80,7 +80,7 @@
         "summary": "PASS",
         "weight": 0.15,
         "score": 1,
-        "duration_seconds": 4.004766339
+        "duration_seconds": 2.9021738409999998
       },
       {
         "name": "errcheck",
@@ -90,7 +90,7 @@
         "summary": "PASS",
         "weight": 0.1,
         "score": 1,
-        "duration_seconds": 4.004381809
+        "duration_seconds": 2.902182346
       },
       {
         "name": "ineffassign",
@@ -100,7 +100,7 @@
         "summary": "PASS",
         "weight": 0.05,
         "score": 1,
-        "duration_seconds": 4.017079694
+        "duration_seconds": 2.902184174
       },
       {
         "name": "gofmt",
@@ -110,7 +110,7 @@
         "summary": "100%",
         "weight": 0.15,
         "score": 1,
-        "duration_seconds": 0.092048113
+        "duration_seconds": 0.023928795
       },
       {
         "name": "complexity",
@@ -142,7 +142,7 @@
             "value": 0
           }
         ],
-        "duration_seconds": 0.000974764
+        "duration_seconds": 0.000565131
       },
       {
         "name": "misspell",
@@ -152,7 +152,7 @@
         "summary": "PASS",
         "weight": 0.02,
         "score": 1,
-        "duration_seconds": 0.270050777
+        "duration_seconds": 0.030769345
       },
       {
         "name": "nolint",
@@ -161,7 +161,7 @@
         "status": "info",
         "summary": "PASS",
         "weight": 0,
-        "duration_seconds": 0.00057675
+        "duration_seconds": 0.008468055
       },
       {
         "name": "license",
@@ -171,14 +171,14 @@
         "summary": "LICENSE",
         "weight": 0.03,
         "score": 1,
-        "duration_seconds": 0.000032821
+        "duration_seconds": 0.000054913
       },
       {
         "name": "tests",
         "label": "tests",
         "category": "tests",
         "status": "pass",
-        "summary": "41",
+        "summary": "42",
         "weight": 0.05,
         "score": 1,
         "metrics": [
@@ -193,7 +193,7 @@
             "value": 10
           }
         ],
-        "duration_seconds": 0.006736751
+        "duration_seconds": 0.012570329
       },
       {
         "name": "coverage",
@@ -202,7 +202,7 @@
         "status": "skipped",
         "summary": "skipped (--cover)",
         "weight": 0.1,
-        "duration_seconds": 0.000009593
+        "duration_seconds": 0.008456402
       },
       {
         "name": "govulncheck",
@@ -229,7 +229,7 @@
             "value": 0
           }
         ],
-        "duration_seconds": 5.012293109
+        "duration_seconds": 4.15281113
       },
       {
         "name": "gosec",
@@ -257,9 +257,9 @@
           }
         ],
         "suppressed": 8,
-        "duration_seconds": 0.512453112
+        "duration_seconds": 0.270449284
       }
     ],
-    "duration_seconds": 5.024222105
+    "duration_seconds": 4.174682157
   }
 }
