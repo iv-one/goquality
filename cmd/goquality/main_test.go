@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -251,5 +252,48 @@ func TestRunBadges(t *testing.T) {
 	}
 	if !bytes.Equal(fromRun, fromSnap) {
 		t.Errorf("badge from snapshot differs:\n%s\nvs\n%s", fromSnap, fromRun)
+	}
+}
+
+func TestRunFrom(t *testing.T) {
+	snap := filepath.Join(t.TempDir(), "snap.json")
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"collect", "--no-security", "-o", snap, sample}, &stdout, &stderr); code != 0 {
+		t.Fatalf("collect: exit code %d, stderr: %s", code, stderr.String())
+	}
+
+	// The report of a snapshot is the report of the run that wrote it.
+	var live, from bytes.Buffer
+	if code := run([]string{"--no-security", "-v", "--next", "--agent=false", sample}, &live, &stderr); code != 0 {
+		t.Fatalf("report: exit code %d, stderr: %s", code, stderr.String())
+	}
+	if code := run([]string{"--from", snap, "-v", "--next", "--agent=false"}, &from, &stderr); code != 0 {
+		t.Fatalf("report --from: exit code %d, stderr: %s", code, stderr.String())
+	}
+	// Only the analysis time differs: the live report comes from a second run.
+	elapsed := regexp.MustCompile(`(?m)^( +time \.+ ).*$`)
+	if got, want := elapsed.ReplaceAllString(from.String(), "$1"), elapsed.ReplaceAllString(live.String(), "$1"); got != want {
+		t.Errorf("report from snapshot differs:\n%s\nvs live:\n%s", got, want)
+	}
+
+	tests := []struct {
+		args []string
+		want int
+	}{
+		{[]string{"--from", snap, "--json"}, 0},
+		{[]string{"--from", snap, "--agent"}, 0},
+		{[]string{"--from", snap, "--min-score", "99.9"}, 1},
+		{[]string{"--from", filepath.Join(t.TempDir(), "missing.json")}, 2},
+		{[]string{"--from", snap, sample}, 2},
+		{[]string{"--from", snap, "--cover"}, 2},
+		{[]string{"--from", snap, "--only", "errcheck"}, 2},
+		{[]string{"badges", "--from", snap, "--no-security", "-o", t.TempDir()}, 2},
+	}
+	for _, tt := range tests {
+		stdout.Reset()
+		stderr.Reset()
+		if got := run(tt.args, &stdout, &stderr); got != tt.want {
+			t.Errorf("run(%q) = %d, want %d; stderr: %s", tt.args, got, tt.want, stderr.String())
+		}
 	}
 }
