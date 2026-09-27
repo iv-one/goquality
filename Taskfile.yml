@@ -1,13 +1,6 @@
-version: '3'
+version: "3"
 
 tasks:
-  default:
-    desc: Lint, test and build
-    cmds:
-      - task: lint
-      - task: test
-      - task: build
-
   build:
     desc: Build all packages
     cmds:
