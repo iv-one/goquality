@@ -31,7 +31,7 @@ func TestRun(t *testing.T) {
 		"license":     {":0"},
 		"tests":       {".:0"},
 		"coverage":    nil,
-		"gosec":       {"main.go:4 G501", "main.go:16 G401"},
+		"gosec":       {"lib/tls.go:6 G402", "main.go:4 G501", "main.go:16 G401"},
 	}
 	for _, r := range rep.Checks {
 		if r.Error != "" {
@@ -60,16 +60,20 @@ func TestRun(t *testing.T) {
 	if got := byName["gofmt"].Findings[0].Fix; got != "gofmt -w lib/ugly.go" {
 		t.Errorf("gofmt fix = %q", got)
 	}
-	if s := byName["gofmt"].Score; s == nil || *s != 0.75 {
-		t.Errorf("gofmt score = %v, want 0.75", s)
+	if s := byName["gofmt"].Score; s == nil || *s != 0.8 {
+		t.Errorf("gofmt score = %v, want 0.8", s)
 	}
 	// Only lib.Add is exercised. The exact ratio depends on the Go version,
 	// which changed how packages without tests appear in coverage profiles.
 	if s := byName["coverage"].Score; s == nil || *s <= 0 || *s >= 0.1 {
 		t.Errorf("coverage score = %v, want between 0 and 0.1", s)
 	}
-	if rep.Issues != 14 {
-		t.Errorf("Issues = %d, want 14", rep.Issues)
+	if rep.Issues != 15 {
+		t.Errorf("Issues = %d, want 15", rep.Issues)
+	}
+	// G402 is HIGH severity with HIGH confidence; G501 and G401 are MEDIUM.
+	if g := byName["gosec"].Findings; !g[0].Blocker || g[1].Blocker || g[2].Blocker || rep.Blockers != 1 {
+		t.Errorf("blockers = %v %v %v (total %d), want only G402", g[0].Blocker, g[1].Blocker, g[2].Blocker, rep.Blockers)
 	}
 	if byName["errcheck"].Suppressed != 2 || rep.Suppressed != 2 {
 		t.Errorf("suppressed = %d (errcheck), %d (total); want 2, 2", byName["errcheck"].Suppressed, rep.Suppressed)

@@ -92,7 +92,7 @@ func TestRunAgent(t *testing.T) {
 			if code := run(args, &stdout, &stderr); code != 0 {
 				t.Fatalf("exit code %d, stderr: %s", code, stderr.String())
 			}
-			got := strings.HasPrefix(stdout.String(), "goquality: grade")
+			got := strings.Contains(stdout.String(), ": grade ")
 			if got != tt.agent {
 				t.Errorf("agent format = %v, want %v:\n%s", got, tt.agent, stdout.String())
 			}

@@ -27,12 +27,19 @@ func Agent(rep check.Report, opts AgentOptions) string {
 	if name == "" {
 		name = "project"
 	}
-	fmt.Fprintf(w, "goquality: grade %s (%.1f%%), %s", rep.Grade, rep.Score, plural(rep.Issues, "issue"))
+	tool := "goquality"
+	if rep.Version != "" {
+		tool += " " + rep.Version
+	}
+	fmt.Fprintf(w, "%s: grade %s (%.1f%%), %s", tool, rep.Grade, rep.Score, plural(rep.Issues, "issue"))
 	if rep.Suppressed > 0 {
 		fmt.Fprintf(w, ", %d suppressed", rep.Suppressed)
 	}
 	fmt.Fprintf(w, " | %s: %s, %s lines of code, %s\n",
 		name, plural(s.Packages, "package"), num(s.CodeLines), plural(s.Tests, "test"))
+	if rep.Blockers > 0 {
+		fmt.Fprintf(w, "score %s; fix the BLOCKER findings first\n", capNote(rep))
+	}
 
 	agentChecks(w, rep)
 	agentSteps(w, rep, opts)
@@ -86,6 +93,9 @@ func agentSteps(w *strings.Builder, rep check.Report, opts AgentOptions) {
 		fmt.Fprintf(w, "  %d. %s +%.1f%%", i+1, s.Check, s.Gain)
 		if s.Issues > 0 {
 			fmt.Fprintf(w, " (%s)", issuesIn(s))
+		}
+		if s.Blockers > 0 {
+			fmt.Fprintf(w, " [%s]", plural(s.Blockers, "blocker"))
 		}
 		if n := suppressedFor(rep, s.Check); n > 0 {
 			fmt.Fprintf(w, " [%d suppressed]", n)
@@ -184,6 +194,9 @@ func agentLine(f agentFinding) string {
 	}
 	if f.Severity != "" {
 		b.WriteString(" " + f.Severity)
+	}
+	if f.Blocker {
+		b.WriteString(" BLOCKER")
 	}
 	b.WriteString(": " + f.Message)
 	if f.Fix != "" {

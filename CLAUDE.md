@@ -40,10 +40,11 @@ The flow is `cmd/goquality` → `project.Load` → `check.Run` → `report.Text`
   - **gosec** runs through `CheckRules`/`CheckAnalyzers` on the already-loaded packages, with one `gosec.Analyzer` per worker because instances aren't concurrency-safe. Its `Process` API re-runs `go list` per directory and was about 10x slower.
   - **govulncheck** runs in-process through `golang.org/x/vuln/scan` with `-json`. Its message types are internal to x/vuln, so `security.go` mirrors the fields it needs. Reachability comes from the first trace frame: function means called, package means imported, neither means only required.
   - **coverage** shells out to `go test -json -vet=off -coverprofile` and is opt-in (`--cover`) because it executes project code.
-- **Next steps** (`check/next.go`): each unfinished check's exact gain, `weight*(1-score)/totalWeight`, ranked, with per-check hints from the `hints` map. A new check should get a hint there.
+- **Blockers:** a `Finding` with `Blocker` set caps `Report.Score` at `BlockerCap` (80, grade B at best), and `UncappedScore` records the score without the cap. Blockers are govulncheck's called vulnerabilities and gosec findings with HIGH severity and HIGH confidence, both the tool's own classification. The cap value is goquality's policy (see `docs/ideas/security-grade-cap.md`).
+- **Next steps** (`check/next.go`): each unfinished check's exact gain, `weight*(1-score)/totalWeight`, ranked, with per-check hints from the `hints` map. Checks with blockers come first, and gains are cumulative so they account for the cap. A new check should get a hint there.
 - **`internal/report`** renders three formats:
-  - text: dotted `label .... value` lines, with colors only on a TTY
-  - JSON: `check.Report` as-is
+  - text: dotted `label .... value` lines, with colors only on a TTY, and next steps only with `--next`
+  - JSON: `check.Report` as-is (`Report.Version` is set by `cmd/goquality`, not `check.Run`)
   - agent (`agent.go`): compact and token-conscious, with findings capped and prioritized by next-step gain. It's the default when `CLAUDECODE` is set and stdout isn't a TTY; see `useAgentFormat`.
 
   Anything an agent needs to act on (fix hints, suggested fixes, re-check commands) must show up in the agent format.

@@ -80,6 +80,7 @@ goquality                  # analyze ./... in the current directory
 goquality path/to/project  # analyze another directory, recursively
 goquality ./cmd/... ./pkg/...
 goquality --verbose        # list every finding with file:line
+goquality --next           # end with next steps: what to fix first
 goquality --json           # machine-readable report
 goquality --agent          # compact report for coding agents
 goquality --cover          # also run tests and measure coverage
@@ -89,9 +90,9 @@ goquality --only errcheck  # quick re-check of specific checks
 goquality --min-score 90   # exit 1 if the score is below 90%
 ```
 
-Every report ends with **next steps**: the checks ranked by how many score
-points fixing them would add, with a hint for each and how many to fix for the
-next grade:
+With `--next`, the report ends with **next steps**: the checks ranked by how
+many score points fixing them would add, with a hint for each and how many to
+fix for the next grade:
 
 ```text
 Next steps (A needs > 80%: fix 1-2)
@@ -101,7 +102,8 @@ Next steps (A needs > 80%: fix 1-2)
              Apply the suggested fixes; each rule is documented at https://staticcheck.dev/docs/checks/.
 ```
 
-The same data is in the JSON report as `next_steps`.
+The same data is always in the JSON report as `next_steps`, and in the agent
+format.
 
 Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
 
@@ -112,7 +114,8 @@ Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
 goquality is built to be run in a loop by an agent: *"run `goquality --cover`
 and get it to A+"*. With `--agent`, the report is compact plain text:
 
-- a one-line verdict
+- a one-line verdict, with the goquality version, and a line saying so when
+  blockers cap the score
 - which checks fail
 - next steps ranked by score gain, with a fix hint each
 - findings grouped by file, with suggested fixes, capped by `--max-findings`
@@ -121,7 +124,7 @@ and get it to A+"*. With `--agent`, the report is compact plain text:
   and how to re-check
 
 ```text
-goquality: grade B (70.3%), 13 issues, 2 suppressed | example.com/sample: 3 packages, 38 lines of code, 1 test
+goquality v0.2.1: grade B (70.3%), 13 issues, 2 suppressed | example.com/sample: 3 packages, 38 lines of code, 1 test
 
 checks:
   fail: govet, staticcheck, errcheck, ineffassign, gofmt, misspell, nolint, license, tests, gosec
@@ -341,6 +344,15 @@ The different kinds of security findings are scored differently:
   vulnerable modules that are only required, are reported but not scored.
 - **gosec:** only HIGH and MEDIUM findings affect the score. G104 (unhandled
   errors) is excluded because it duplicates errcheck.
+
+Some security findings are **blockers**: while any remains, the score is
+capped at 80%, so the grade is B at best, however clean the rest of the
+project is. Blockers are vulnerabilities in code the project calls, and gosec
+findings with HIGH severity *and* HIGH confidence, such as G402
+(`InsecureSkipVerify: true`). The confidence requirement leaves out noisy
+rules such as G115 (integer overflow) and G101 (hardcoded credentials). The
+report says when the score is capped and what it would be without the cap,
+and next steps list checks with blockers first.
 
 Generated files (with a `// Code generated ... DO NOT EDIT.` header) are
 counted in the project statistics but excluded from all checks.

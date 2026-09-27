@@ -23,8 +23,9 @@ func JSON(rep check.Report) ([]byte, error) {
 
 // TextOptions configure the text report.
 type TextOptions struct {
-	Verbose bool // list individual findings
-	Color   bool // ANSI colors
+	Verbose   bool // list individual findings
+	NextSteps bool // end with the next steps
+	Color     bool // ANSI colors
 }
 
 const width = 42 // width of a "label ..... value" line, including indent
@@ -68,6 +69,9 @@ func Text(rep check.Report, opts TextOptions) string {
 	fmt.Fprintln(w)
 	p.line(0, "Grade", string(rep.Grade), gradeColor(rep.Grade))
 	p.line(0, "Score", fmt.Sprintf("%.1f%%", rep.Score), gradeColor(rep.Grade))
+	if rep.Blockers > 0 {
+		fmt.Fprintf(w, "  %s\n", p.color("31", capNote(rep)))
+	}
 
 	p.section("Project")
 	if s.GoVersion != "" {
@@ -107,7 +111,12 @@ func Text(rep check.Report, opts TextOptions) string {
 		p.line(2, "suppressed", num(rep.Suppressed), "")
 	}
 	p.line(2, "time", fmt.Sprintf("%.1fs", rep.Duration), "")
-	p.nextSteps(rep)
+	if rep.Version != "" {
+		p.line(2, "goquality version", rep.Version, "")
+	}
+	if opts.NextSteps {
+		p.nextSteps(rep)
+	}
 	return w.String()
 }
 
@@ -224,8 +233,8 @@ func (p printer) finding(f check.Finding) {
 		}
 	}
 	msg := f.Message
-	if f.Severity != "" {
-		msg = "[" + f.Severity + "] " + msg
+	if tags := findingTags(f); tags != "" {
+		msg = "[" + tags + "] " + msg
 	}
 	if f.Rule != "" && !strings.HasPrefix(f.Message, f.Rule) {
 		msg += p.color("2", " ("+f.Rule+")")
@@ -238,6 +247,33 @@ func (p printer) finding(f check.Finding) {
 	} else {
 		fmt.Fprintf(p.w, "      %s\n", msg)
 	}
+}
+
+// findingTags describes a finding's severity and whether it is a blocker,
+// e.g. "HIGH, blocker".
+func findingTags(f check.Finding) string {
+	tags := f.Severity
+	if f.Blocker {
+		if tags != "" {
+			tags += ", "
+		}
+		tags += "blocker"
+	}
+	return tags
+}
+
+// capNote explains the blocker cap, e.g. "capped at 80% by 1 blocker
+// (97.3% without it)".
+func capNote(rep check.Report) string {
+	it := "it"
+	if rep.Blockers > 1 {
+		it = "them"
+	}
+	note := fmt.Sprintf("capped at %.0f%% by %s", check.BlockerCap, plural(rep.Blockers, "blocker"))
+	if rep.UncappedScore > 0 {
+		return note + fmt.Sprintf(" (%.1f%% without %s)", rep.UncappedScore, it)
+	}
+	return note
 }
 
 func statusColor(r check.Result) string {

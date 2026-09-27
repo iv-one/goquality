@@ -98,6 +98,7 @@ type options struct {
 	cmd        string // "report", "collect", "compare" or "check"
 	dir        string
 	verbose    bool
+	next       bool
 	json       bool
 	agent      bool
 	maxFinds   int
@@ -177,6 +178,7 @@ func runReport(ctx context.Context, o options, checks []check.Check, stdout, std
 
 	status.set("analyzing " + displayName(p))
 	rep := check.Run(ctx, p, checks, runOptions(o))
+	rep.Version = version()
 	status.clear()
 	if ctx.Err() != nil {
 		logf("interrupted")
@@ -234,6 +236,7 @@ func parseFlags(cmd string, args []string, stderr io.Writer) (options, error) {
 	switch cmd {
 	case "report":
 		fs.Float64Var(&o.minScore, "min-score", 0, "exit with status 1 if the score is below `percent`")
+		fs.BoolVar(&o.next, "next", false, "end the report with next steps: what to fix for the most score gain")
 		fs.BoolVar(&o.version, "version", false, "print version and exit")
 	case "collect":
 		fs.StringVar(&o.output, "o", "", "write the snapshot to `file` instead of standard output")
@@ -357,8 +360,9 @@ func render(w io.Writer, rep check.Report, o options) error {
 		return err
 	}
 	_, err := io.WriteString(w, report.Text(rep, report.TextOptions{
-		Verbose: o.verbose,
-		Color:   useColor(w, o),
+		Verbose:   o.verbose,
+		NextSteps: o.next,
+		Color:     useColor(w, o),
 	}))
 	return err
 }

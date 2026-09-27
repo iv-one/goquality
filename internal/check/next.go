@@ -9,7 +9,9 @@ type Step struct {
 	Gain   float64 `json:"gain"` // score points gained if the check fully passes
 	Issues int     `json:"issues"`
 	Files  int     `json:"files"`
-	Hint   string  `json:"hint,omitempty"`
+	// Blockers counts the check's findings that cap the score.
+	Blockers int    `json:"blockers,omitempty"`
+	Hint     string `json:"hint,omitempty"`
 }
 
 // hints tell a reader, human or agent, how to resolve a check's findings.
@@ -26,16 +28,20 @@ var hints = map[string]string{
 	"license":     "Add a LICENSE file at the module root.",
 	"tests":       "Add _test.go files for the listed packages.",
 	"coverage":    "Add tests for uncovered code; go test -coverprofile=c.out ./... && go tool cover -func=c.out shows the gaps.",
-	"govulncheck": "Upgrade the affected modules, or the Go toolchain for stdlib, to the fixed versions.",
-	"gosec":       "Fix HIGH and MEDIUM findings first; they are the ones that affect the score.",
+	"govulncheck": "Upgrade the affected modules, or the Go toolchain for stdlib, to the fixed versions. Called vulnerabilities are blockers.",
+	"gosec":       "Fix blockers (HIGH severity, HIGH confidence) first, then MEDIUM findings; LOW findings do not affect the score.",
 }
 
 // Hint returns how to resolve a check's findings, or "" if there is no hint.
 func Hint(check string) string { return hints[check] }
 
 // nextSteps ranks the checks that are not at 100% by how much the overall
-// score would rise if they were.
-func nextSteps(results []Result, totalWeight float64) []Step {
+// score would rise if they were. score is the score before the blocker cap.
+//
+// While blockers remain the score is capped, so checks with blockers come
+// first, and each step's gain is what it adds after the steps before it.
+// Without blockers that is simply weight*(1-score)/totalWeight.
+func nextSteps(results []Result, totalWeight, score float64) []Step {
 	if totalWeight == 0 {
 		return nil
 	}
@@ -49,15 +55,33 @@ func nextSteps(results []Result, totalWeight float64) []Step {
 			files[f.File] = true
 		}
 		steps = append(steps, Step{
-			Check:  r.Name,
-			Label:  r.Label,
-			Gain:   r.Weight * (1 - *r.Score) / totalWeight * 100,
-			Issues: len(r.Findings),
-			Files:  len(files),
-			Hint:   Hint(r.Name),
+			Check:    r.Name,
+			Label:    r.Label,
+			Gain:     r.Weight * (1 - *r.Score) / totalWeight * 100,
+			Issues:   len(r.Findings),
+			Files:    len(files),
+			Blockers: blockers(r.Findings),
+			Hint:     Hint(r.Name),
 		})
 	}
-	sort.SliceStable(steps, func(i, j int) bool { return steps[i].Gain > steps[j].Gain })
+	sort.SliceStable(steps, func(i, j int) bool {
+		if bi, bj := steps[i].Blockers > 0, steps[j].Blockers > 0; bi != bj {
+			return bi
+		}
+		return steps[i].Gain > steps[j].Gain
+	})
+
+	remaining := 0
+	for _, s := range steps {
+		remaining += s.Blockers
+	}
+	cur := capScore(score, remaining > 0)
+	for i := range steps {
+		score += steps[i].Gain
+		remaining -= steps[i].Blockers
+		next := capScore(score, remaining > 0)
+		steps[i].Gain, cur = next-cur, next
+	}
 	return steps
 }
 

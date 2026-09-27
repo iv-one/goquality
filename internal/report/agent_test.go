@@ -46,3 +46,29 @@ func TestAgent(t *testing.T) {
 		t.Errorf("capped output lists gofmt finding:\n%s", out)
 	}
 }
+
+func TestAgentBlockers(t *testing.T) {
+	rep := check.Report{
+		Version:       "v0.5.0",
+		Grade:         check.GradeB,
+		Score:         80,
+		Blockers:      1,
+		UncappedScore: 97.3,
+		Issues:        1,
+		NextSteps:     []check.Step{{Check: "gosec", Gain: 19.3, Issues: 1, Files: 1, Blockers: 1}},
+		Checks: []check.Result{{Name: "gosec", Status: check.Warn, Findings: []check.Finding{
+			{File: "tls.go", Line: 6, Rule: "G402", Severity: "HIGH", Blocker: true, Message: "G402: TLS InsecureSkipVerify set true."},
+		}}},
+	}
+	out := Agent(rep, AgentOptions{Command: "goquality --agent"})
+	for _, want := range []string{
+		"goquality v0.5.0: grade B (80.0%), 1 issue",
+		"\nscore capped at 80% by 1 blocker (97.3% without it); fix the BLOCKER findings first\n",
+		"  1. gosec +19.3% (1 issue) [1 blocker]\n",
+		"  6 gosec HIGH BLOCKER: G402: TLS InsecureSkipVerify set true.\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+}
