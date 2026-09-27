@@ -46,24 +46,27 @@ func Agent(rep check.Report, opts AgentOptions) string {
 	agentFindings(w, rep, opts)
 
 	w.WriteString("\nrules:\n")
-	w.WriteString("- Fix the code rather than suppressing findings. Suppressions are counted, and a //nolint must name its linters and give a reason.\n")
+	w.WriteString("- Fix the code rather than suppressing findings. Suppressions are counted in the report.\n")
 	fmt.Fprintf(w, "- After changes, re-run %s to confirm the score went up.\n", opts.Command)
 	return w.String()
 }
 
 // agentChecks lists check outcomes by status. Failing checks are detailed
-// in the next steps, so they are only named here.
+// in the next steps, so they are only named here. Informational checks with
+// findings are listed apart from passing ones: they don't affect the score.
 func agentChecks(w *strings.Builder, rep check.Report) {
-	var pass, fail, skip []string
+	var pass, fail, skip, info []string
 	var errs []string
 	for _, r := range rep.Checks {
-		switch r.Status {
-		case check.Pass, check.Info:
+		switch {
+		case r.Status == check.Info && len(r.Findings) > 0:
+			info = append(info, r.Name)
+		case r.Status == check.Pass, r.Status == check.Info:
 			pass = append(pass, r.Name)
-		case check.Skipped:
+		case r.Status == check.Skipped:
 			reason := strings.TrimSpace(strings.TrimPrefix(r.Summary, "skipped"))
 			skip = append(skip, strings.TrimSpace(r.Name+" "+reason))
-		case check.Failed:
+		case r.Status == check.Failed:
 			errs = append(errs, fmt.Sprintf("%s (%s)", r.Name, r.Error))
 		default:
 			fail = append(fail, r.Name)
@@ -73,7 +76,7 @@ func agentChecks(w *strings.Builder, rep check.Report) {
 	for _, group := range []struct {
 		label string
 		names []string
-	}{{"fail", fail}, {"error", errs}, {"skip", skip}, {"pass", pass}} {
+	}{{"fail", fail}, {"error", errs}, {"skip", skip}, {"info", info}, {"pass", pass}} {
 		if len(group.names) > 0 {
 			fmt.Fprintf(w, "  %s: %s\n", group.label, strings.Join(group.names, ", "))
 		}

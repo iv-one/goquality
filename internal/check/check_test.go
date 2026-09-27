@@ -31,7 +31,7 @@ func TestRun(t *testing.T) {
 		"license":     {":0"},
 		"tests":       {".:0"},
 		"coverage":    nil,
-		"gosec":       {"lib/tls.go:6 G402", "main.go:4 G501", "main.go:16 G401"},
+		"gosec":       {"lib/tls.go:9 G402", "main.go:4 G501", "main.go:16 G401"}, // line 6 is suppressed by #nosec
 	}
 	for _, r := range rep.Checks {
 		if r.Error != "" {
@@ -57,6 +57,9 @@ func TestRun(t *testing.T) {
 	if got := byName["staticcheck"].Findings[0].Fix; got != "replace with strings.EqualFold" {
 		t.Errorf("SA6005 fix = %q", got)
 	}
+	if r := byName["nolint"]; r.Score != nil || r.Status != Info {
+		t.Errorf("nolint score, status = %v, %s; want nil, info", r.Score, r.Status)
+	}
 	if got := byName["gofmt"].Findings[0].Fix; got != "gofmt -w lib/ugly.go" {
 		t.Errorf("gofmt fix = %q", got)
 	}
@@ -75,8 +78,9 @@ func TestRun(t *testing.T) {
 	if g := byName["gosec"].Findings; !g[0].Blocker || g[1].Blocker || g[2].Blocker || rep.Blockers != 1 {
 		t.Errorf("blockers = %v %v %v (total %d), want only G402", g[0].Blocker, g[1].Blocker, g[2].Blocker, rep.Blockers)
 	}
-	if byName["errcheck"].Suppressed != 2 || rep.Suppressed != 2 {
-		t.Errorf("suppressed = %d (errcheck), %d (total); want 2, 2", byName["errcheck"].Suppressed, rep.Suppressed)
+	if byName["errcheck"].Suppressed != 2 || byName["gosec"].Suppressed != 1 || rep.Suppressed != 3 {
+		t.Errorf("suppressed = %d (errcheck), %d (gosec), %d (total); want 2, 1, 3",
+			byName["errcheck"].Suppressed, byName["gosec"].Suppressed, rep.Suppressed)
 	}
 	if rep.Score <= 0 || rep.Score >= 100 {
 		t.Errorf("Score = %v, want between 0 and 100", rep.Score)

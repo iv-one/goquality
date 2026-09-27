@@ -23,8 +23,8 @@ func TestLoadStats(t *testing.T) {
 		GoFiles:        5,
 		TestFiles:      1,
 		GeneratedFiles: 1,
-		Lines:          88,
-		CodeLines:      41,
+		Lines:          91,
+		CodeLines:      42,
 		TestCodeLines:  23,
 		Functions:      5,
 		Tests:          1, // Testhelper does not count

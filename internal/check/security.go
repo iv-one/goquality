@@ -257,9 +257,6 @@ func runGosec(_ context.Context, env *Env) Result {
 	var findings, serious []Finding
 	bySeverity := make(map[issue.Score]int)
 	for _, is := range issues {
-		if is.NoSec {
-			continue
-		}
 		f := Finding{
 			Rule:     is.RuleID,
 			Severity: is.Severity.String(),
@@ -277,6 +274,12 @@ func runGosec(_ context.Context, env *Env) Result {
 		line, _, _ := strings.Cut(is.Line, "-")
 		f.Line, _ = strconv.Atoi(line)
 		f.Column, _ = strconv.Atoi(is.Col)
+		// gosec reports issues silenced by #nosec with their suppressions;
+		// count them like //nolint rather than dropping them silently.
+		if len(is.Suppressions) > 0 {
+			env.suppress.record("gosec")
+			continue
+		}
 		if env.suppressed("gosec", f) {
 			continue
 		}
@@ -300,7 +303,8 @@ func runGosec(_ context.Context, env *Env) Result {
 }
 
 func newGosec() *gosec.Analyzer {
-	a := gosec.NewAnalyzer(gosec.NewConfig(), false, true, false, 1, log.New(io.Discard, "", 0))
+	// trackSuppressions returns #nosec-suppressed issues so they can be counted.
+	a := gosec.NewAnalyzer(gosec.NewConfig(), false, true, true, 1, log.New(io.Discard, "", 0))
 	a.LoadRules(rules.Generate(false, rules.NewRuleFilter(true, gosecExcluded...)).RulesInfo())
 	a.LoadAnalyzers(analyzers.Generate(false).AnalyzersInfo())
 	return a

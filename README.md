@@ -127,8 +127,9 @@ and get it to A+"*. With `--agent`, the report is compact plain text:
 goquality v0.2.1: grade B (70.3%), 13 issues, 2 suppressed | example.com/sample: 3 packages, 38 lines of code, 1 test
 
 checks:
-  fail: govet, staticcheck, errcheck, ineffassign, gofmt, misspell, nolint, license, tests, gosec
+  fail: govet, staticcheck, errcheck, ineffassign, gofmt, misspell, license, tests, gosec
   skip: coverage (--cover)
+  info: nolint
   pass: build, complexity, govulncheck
 
 next steps, by score gain (A needs > 80%: fix 1-2):
@@ -326,7 +327,7 @@ moment to show up.
 | Maintainability | `gofmt` | files that are not gofmt-formatted | 0.15 |
 | | `complexity` | functions with cyclomatic complexity above 15 (gocyclo) | 0.10 |
 | | `misspell` | common English misspellings | 0.02 |
-| | `nolint` | `//nolint` directives without linter names or a reason | 0.05 |
+| | `nolint` | `//nolint` directives without linter names or a reason (informational) | — |
 | | `license` | a license file at the module root | 0.03 |
 | Tests | `tests` | share of packages with tests; test counts | 0.05 |
 | | `coverage` | statement coverage and test results (`--cover` only) | 0.10 |
@@ -346,8 +347,8 @@ Security affects the score in two ways: as two weighted checks, like every
 other check, and through **blockers**, which cap the whole score.
 
 **Weighted checks.** `govulncheck` and `gosec` each weigh 0.10. Without
-`--cover` all weights add up to 1.20, so each security check accounts for
-about 8.3 points of the score (7.7 with `--cover`):
+`--cover` all weights add up to 1.15, so each security check accounts for
+about 8.7 points of the score (8.0 with `--cover`):
 
 - **govulncheck:** each vulnerability in code the project actually calls
   takes 25% off the check, so four or more bring it to 0. Vulnerable packages
@@ -414,10 +415,12 @@ goquality honors the directives other Go tools already use:
 A directive applies to its own line. When the comment is alone on its line, it
 also applies to the next line.
 
-Suppressions are never free. The report counts suppressed findings, and the
-`nolint` check flags any `//nolint` that doesn't name its linters or give a
-reason (`//nolint:errcheck // cleanup is best-effort`). This keeps a
-"make it A+" loop from being won by silencing linters.
+Suppressing a finding is your call, and it never lowers the score or fails
+`goquality check`. A suppressed finding doesn't count against its check. To
+keep suppressions visible, the report shows how many findings each check
+suppressed, and the informational `nolint` check lists any `//nolint` that
+doesn't name its linters or give a reason
+(`//nolint:errcheck // cleanup is best-effort`).
 
 ## Development
 

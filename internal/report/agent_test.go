@@ -25,12 +25,13 @@ func TestAgent(t *testing.T) {
 				{File: "a.go", Line: 3, Column: 1, Message: "unchecked error"},
 			}},
 			{Name: "coverage", Status: check.Skipped, Summary: "skipped (--cover)"},
+			{Name: "nolint", Status: check.Info},
 		},
 	}
 	out := Agent(rep, AgentOptions{Command: "goquality --agent", MaxFindings: 2})
 	for _, want := range []string{
 		"goquality: grade A (85.0%), 3 issues, 1 suppressed",
-		"  fail: gofmt, errcheck\n  skip: coverage (--cover)\n  pass: build\n",
+		"  fail: gofmt, errcheck\n  skip: coverage (--cover)\n  pass: build, nolint\n",
 		"next steps, by score gain (A+ needs > 90%: fix 1)",
 		"  1. errcheck +6.0% (2 issues) [1 suppressed]: Handle it.\n",
 		"Re-check a single check: goquality --agent --only <check>",

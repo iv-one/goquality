@@ -102,7 +102,8 @@ func Compare(base, cur Snapshot, baseLabel, curLabel string) (Comparison, error)
 			d.New, d.Fixed = diffFindings(b.Findings, r.Findings)
 			d.Dropped = len(b.Findings) == 0 && len(r.Findings) == 0 && lower(r.Score, b.Score)
 			d.Status = Pass
-			if len(d.New) > 0 || d.Dropped {
+			// Checks without a score, such as nolint, are informational.
+			if (len(d.New) > 0 || d.Dropped) && r.Score != nil {
 				d.Status = Fail
 				c.Passed = false
 			}
