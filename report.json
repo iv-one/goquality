@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "goquality_version": "v0.0.0-20260927123552-481826b7073f",
-  "commit": "481826b7073fa2edb9d81d5edc3d142a08a4905a",
-  "timestamp": "2026-09-27T12:38:54Z",
+  "goquality_version": "v0.0.0-20260928135504-195fca330eac",
+  "commit": "195fca330eac392ac65f657f6f806d3dad0afe89",
+  "timestamp": "2026-09-28T13:58:14Z",
   "settings": {
     "patterns": [
       "./..."
@@ -26,20 +26,20 @@
     "cyclo_over": 15
   },
   "report": {
-    "goquality_version": "v0.0.0-20260927123552-481826b7073f",
+    "goquality_version": "v0.0.0-20260928135504-195fca330eac",
     "project": {
       "module": "github.com/iv-one/goquality",
       "go_version": "1.27.1",
       "packages": 7,
       "tested_packages": 7,
-      "go_files": 32,
-      "test_files": 10,
+      "go_files": 33,
+      "test_files": 11,
       "generated_files": 0,
-      "lines": 5519,
-      "code_lines": 3554,
-      "test_code_lines": 1170,
+      "lines": 5565,
+      "code_lines": 3556,
+      "test_code_lines": 1207,
       "functions": 182,
-      "tests": 42,
+      "tests": 43,
       "benchmarks": 0,
       "fuzz_tests": 0,
       "examples": 0,
@@ -60,7 +60,7 @@
         "summary": "PASS",
         "weight": 0.1,
         "score": 1,
-        "duration_seconds": 0.000003735
+        "duration_seconds": 8.02e-7
       },
       {
         "name": "govet",
@@ -70,7 +70,7 @@
         "summary": "PASS",
         "weight": 0.2,
         "score": 1,
-        "duration_seconds": 2.902256596
+        "duration_seconds": 2.962797211
       },
       {
         "name": "staticcheck",
@@ -80,7 +80,7 @@
         "summary": "PASS",
         "weight": 0.15,
         "score": 1,
-        "duration_seconds": 2.9021738409999998
+        "duration_seconds": 2.959697128
       },
       {
         "name": "errcheck",
@@ -90,7 +90,7 @@
         "summary": "PASS",
         "weight": 0.1,
         "score": 1,
-        "duration_seconds": 2.902182346
+        "duration_seconds": 2.963258573
       },
       {
         "name": "ineffassign",
@@ -100,7 +100,7 @@
         "summary": "PASS",
         "weight": 0.05,
         "score": 1,
-        "duration_seconds": 2.902184174
+        "duration_seconds": 2.947663686
       },
       {
         "name": "gofmt",
@@ -110,7 +110,7 @@
         "summary": "100%",
         "weight": 0.15,
         "score": 1,
-        "duration_seconds": 0.023928795
+        "duration_seconds": 0.122872435
       },
       {
         "name": "complexity",
@@ -142,7 +142,7 @@
             "value": 0
           }
         ],
-        "duration_seconds": 0.000565131
+        "duration_seconds": 0.000848999
       },
       {
         "name": "misspell",
@@ -152,7 +152,7 @@
         "summary": "PASS",
         "weight": 0.02,
         "score": 1,
-        "duration_seconds": 0.030769345
+        "duration_seconds": 0.037198196
       },
       {
         "name": "nolint",
@@ -161,7 +161,7 @@
         "status": "info",
         "summary": "PASS",
         "weight": 0,
-        "duration_seconds": 0.008468055
+        "duration_seconds": 0.000762507
       },
       {
         "name": "license",
@@ -171,14 +171,14 @@
         "summary": "LICENSE",
         "weight": 0.03,
         "score": 1,
-        "duration_seconds": 0.000054913
+        "duration_seconds": 0.000041277
       },
       {
         "name": "tests",
         "label": "tests",
         "category": "tests",
         "status": "pass",
-        "summary": "42",
+        "summary": "43",
         "weight": 0.05,
         "score": 1,
         "metrics": [
@@ -190,10 +190,10 @@
           {
             "key": "test_files",
             "label": "test files",
-            "value": 10
+            "value": 11
           }
         ],
-        "duration_seconds": 0.012570329
+        "duration_seconds": 0.006515767
       },
       {
         "name": "coverage",
@@ -202,7 +202,7 @@
         "status": "skipped",
         "summary": "skipped (--cover)",
         "weight": 0.1,
-        "duration_seconds": 0.008456402
+        "duration_seconds": 0.000001734
       },
       {
         "name": "govulncheck",
@@ -229,7 +229,7 @@
             "value": 0
           }
         ],
-        "duration_seconds": 4.15281113
+        "duration_seconds": 4.650598184
       },
       {
         "name": "gosec",
@@ -257,9 +257,9 @@
           }
         ],
         "suppressed": 8,
-        "duration_seconds": 0.270449284
+        "duration_seconds": 0.917009623
       }
     ],
-    "duration_seconds": 4.174682157
+    "duration_seconds": 4.651733589
   }
 }

@@ -1,4 +1,4 @@
-goquality report for iv-one/goquality@481826b7073fa2edb9d81d5edc3d142a08a4905a (2026-09-27)
+goquality report for iv-one/goquality@195fca330eac392ac65f657f6f806d3dad0afe89 (2026-09-28)
 
 Go Quality  github.com/iv-one/goquality
 
@@ -8,10 +8,10 @@ Score ............................. 100.0%
 Project
   go version ...................... 1.27.1
   packages ............................. 7
-  go files ............................ 32
-  test files .......................... 10
-  lines of code .................... 3,554
-  lines of test code ............... 1,170
+  go files ............................ 33
+  test files .......................... 11
+  lines of code .................... 3,556
+  lines of test code ............... 1,207
   functions .......................... 182
   dependencies ........................ 15
   direct dependencies .................. 9
@@ -35,9 +35,9 @@ Maintainability
   license ........................ LICENSE
 
 Tests
-  tests ............................... 42
+  tests ............................... 43
     packages tested .................. 7/7
-    test files ........................ 10
+    test files ........................ 11
   coverage ............. skipped (--cover)
 
 Security
@@ -53,5 +53,5 @@ Security
 Overall
   issues ............................... 0
   suppressed ........................... 8
-  time .............................. 4.2s
-  goquality version .. v0.0.0-20260927123552-481826b7073f
+  time .............................. 4.7s
+  goquality version .. v0.0.0-20260928135504-195fca330eac
