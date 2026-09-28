@@ -108,7 +108,10 @@ format.
 
 Exit codes: `0` success, `1` score below `--min-score`, `2` usage or load error.
 
-`--cover` is opt-in because it executes the project's tests.
+`--cover` is opt-in because it executes the project's tests. Coverage is
+measured across the whole module (`go test -coverpkg`), so code exercised by
+another package's tests counts, like `internal/` packages tested through the
+public API.
 
 ## For coding agents
 

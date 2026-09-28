@@ -27,7 +27,7 @@ var hints = map[string]string{
 	"nolint":      "Fix the underlying issue, or write //nolint:<linter> // <reason>.",
 	"license":     "Add a LICENSE file at the module root.",
 	"tests":       "Add _test.go files for the listed packages.",
-	"coverage":    "Add tests for uncovered code; go test -coverprofile=c.out ./... && go tool cover -func=c.out shows the gaps.",
+	"coverage":    "Add tests for uncovered code; go test -coverpkg=./... -coverprofile=c.out ./... && go tool cover -func=c.out shows the gaps.",
 	"govulncheck": "Upgrade the affected modules, or the Go toolchain for stdlib, to the fixed versions. Called vulnerabilities are blockers.",
 	"gosec":       "Fix blockers (HIGH severity, HIGH confidence) first, then MEDIUM findings; LOW findings do not affect the score.",
 }

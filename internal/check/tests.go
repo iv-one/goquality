@@ -74,7 +74,9 @@ func TestPresence() Check {
 }
 
 // Coverage runs the project's tests with statement coverage. It is opt-in
-// because it executes project code.
+// because it executes project code. Coverage is attributed module-wide
+// (-coverpkg), so code exercised by another package's tests counts, as in a
+// public API tested end to end over internal packages.
 func Coverage() Check {
 	return checkFunc{name: "coverage", category: Tests, weight: 0.10, run: func(ctx context.Context, env *Env) Result {
 		if !env.Options.Coverage {
@@ -95,7 +97,9 @@ func runCoverage(ctx context.Context, env *Env) Result {
 		return Result{Error: err.Error()}
 	}
 
-	args := append([]string{"test", "-json", "-vet=off", "-covermode=set", "-coverprofile=" + prof.Name()}, p.Patterns...)
+	args := []string{"test", "-json", "-vet=off", "-covermode=set",
+		"-coverpkg=" + strings.Join(p.Patterns, ","), "-coverprofile=" + prof.Name()}
+	args = append(args, p.Patterns...)
 	cmd := exec.CommandContext(ctx, "go", args...) //nolint:gosec // runs the project's own tests, by request
 	cmd.Dir = p.Root
 	var stdout, stderr bytes.Buffer
