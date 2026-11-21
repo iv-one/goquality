@@ -1,8 +1,6 @@
 module github.com/iv-one/goquality
 
-go 1.27.1
-
-toolchain go1.27.4
+go 1.27.4
 
 require (
 	github.com/fzipp/gocyclo v0.6.0
