@@ -37,7 +37,10 @@ jobs:
           args: --verbose
 
   # Publishes README badges and the report for main to the quality-history
-  # branch, using this repository's action as users would.
+  # branch, using this repository's action as users would. It names the
+  # action as iv-one/goquality@main rather than ./ so tools that look for the
+  # goquality action (repo-keeper) recognise it; on a push to main that is
+  # the commit being published.
   badges:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
@@ -55,6 +58,6 @@ jobs:
           go-version: '1.27.x'
           check-latest: true
 
-      - uses: ./
+      - uses: iv-one/goquality@main
         with:
           command: publish
